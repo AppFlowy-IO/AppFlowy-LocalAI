@@ -72,6 +72,7 @@ impl SidecarManager {
   }
 
   pub fn init_plugin(&self, id: PluginId, init_params: Value) -> Result<Arc<Plugin>, SidecarError> {
+    trace!("init plugin: {:?}, {:?}", id, init_params);
     if self.operating_system.is_not_desktop() {
       return Err(SidecarError::Internal(anyhow!(
         "plugin not supported on this platform"

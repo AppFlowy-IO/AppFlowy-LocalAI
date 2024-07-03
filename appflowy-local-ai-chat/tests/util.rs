@@ -34,12 +34,13 @@ impl LocalAITest {
       exec_path: self.config.chat_bin_path.clone(),
     };
     let plugin_id = self.manager.create_plugin(info).await.unwrap();
+    let absolute_chat_model_path = self.config.chat_model_absolute_path();
     self
       .manager
       .init_plugin(
         plugin_id,
         json!({
-            "absolute_chat_model_path":self.config.chat_model_absolute_path(),
+            "absolute_chat_model_path":absolute_chat_model_path,
         }),
       )
       .unwrap();
