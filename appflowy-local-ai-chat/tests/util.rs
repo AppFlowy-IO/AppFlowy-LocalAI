@@ -35,6 +35,10 @@ impl LocalAITest {
     };
     let plugin_id = self.manager.create_plugin(info).await.unwrap();
     let absolute_chat_model_path = self.config.chat_model_absolute_path();
+    if PathBuf::from(&absolute_chat_model_path).exists() {
+      panic!("Model path does not exist: {}", absolute_chat_model_path);
+    }
+
     self
       .manager
       .init_plugin(
@@ -55,6 +59,9 @@ impl LocalAITest {
     };
     let plugin_id = self.manager.create_plugin(info).await.unwrap();
     let embedding_model_path = self.config.embedding_model_absolute_path();
+    if PathBuf::from(&embedding_model_path).exists() {
+      panic!("Model path does not exist: {}", embedding_model_path);
+    }
     self
       .manager
       .init_plugin(
