@@ -1,7 +1,10 @@
-use bytes::Bytes;
+use crate::chat_plugin::ChatPluginOperation;
+use anyhow::{anyhow, Result};
 use appflowy_plugin::core::plugin::{Plugin, PluginId, PluginInfo};
 use appflowy_plugin::error::SidecarError;
 use appflowy_plugin::manager::SidecarManager;
+use appflowy_plugin::util::{get_operating_system, OperatingSystem};
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
@@ -10,9 +13,6 @@ use tokio::sync::RwLock;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{error, info, instrument, trace};
-use anyhow::{anyhow, Result};
-use appflowy_plugin::util::{get_operating_system, OperatingSystem};
-use crate::chat_plugin::ChatPluginOperation;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LocalLLMSetting {
@@ -87,9 +87,7 @@ impl LocalChatLLMChat {
         trace!("[Chat Plugin] chat plugin is ready");
         Ok(())
       },
-      Err(_) => Err(
-        anyhow!("Timeout while waiting for chat plugin to be ready"),
-      ),
+      Err(_) => Err(anyhow!("Timeout while waiting for chat plugin to be ready")),
     }
   }
 
@@ -278,7 +276,7 @@ impl ChatPluginConfig {
       return Err(anyhow!(
         "Chat binary path does not exist: {:?}",
         chat_bin_path
-      ))
+      ));
     }
     if !chat_bin_path.is_file() {
       return Err(anyhow!(
@@ -290,14 +288,10 @@ impl ChatPluginConfig {
     // Check if local_model_dir exists and is a directory
     let chat_model_path = PathBuf::from(&chat_model_path);
     if !chat_model_path.exists() {
-      return Err(
-        anyhow!("Local model does not exist: {:?}", chat_model_path),
-      );
+      return Err(anyhow!("Local model does not exist: {:?}", chat_model_path));
     }
     if !chat_model_path.is_file() {
-      return Err(
-        anyhow!("Local model is not a file: {:?}", chat_model_path),
-      );
+      return Err(anyhow!("Local model is not a file: {:?}", chat_model_path));
     }
 
     Ok(Self {

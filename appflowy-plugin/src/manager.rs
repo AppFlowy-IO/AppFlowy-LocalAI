@@ -8,10 +8,10 @@ use parking_lot::Mutex;
 use serde_json::Value;
 use std::io;
 
+use crate::util::{get_operating_system, OperatingSystem};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Weak};
 use tracing::{error, info, instrument, trace, warn};
-use crate::util::{get_operating_system, OperatingSystem};
 
 pub struct SidecarManager {
   state: Arc<Mutex<SidecarState>>,

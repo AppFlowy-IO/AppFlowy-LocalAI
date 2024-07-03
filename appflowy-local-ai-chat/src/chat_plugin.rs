@@ -1,8 +1,8 @@
 use anyhow::anyhow;
-use bytes::Bytes;
 use appflowy_plugin::core::parser::{DefaultResponseParser, ResponseParser};
 use appflowy_plugin::core::plugin::Plugin;
 use appflowy_plugin::error::{RemoteError, SidecarError};
+use bytes::Bytes;
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use std::sync::Weak;
@@ -66,15 +66,15 @@ impl ChatPluginOperation {
     chat_id: &str,
     message: &str,
   ) -> Result<ReceiverStream<Result<Bytes, SidecarError>>, anyhow::Error> {
-    let plugin = self
-      .get_plugin()?;
+    let plugin = self.get_plugin()?;
     let params = json!({
         "chat_id": chat_id,
         "method": "stream_answer",
         "params": { "content": message }
     });
     plugin
-      .stream_request::<ChatStreamResponseParser>("handle", &params).map_err(|e| e.into())
+      .stream_request::<ChatStreamResponseParser>("handle", &params)
+      .map_err(|e| e.into())
   }
 
   pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<JsonValue>, SidecarError> {
@@ -119,7 +119,8 @@ impl ResponseParser for ChatRelatedQuestionsResponseParser {
   fn parse_json(json: JsonValue) -> Result<Self::ValueType, RemoteError> {
     json
       .get("data")
-      .and_then(|data| data.as_array()).cloned()
+      .and_then(|data| data.as_array())
+      .cloned()
       .ok_or(RemoteError::ParseResponse(json))
   }
 }

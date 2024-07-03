@@ -1,20 +1,20 @@
 use anyhow::Result;
-use bytes::Bytes;
 use appflowy_plugin::manager::SidecarManager;
+use bytes::Bytes;
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Once;
 use tokio_stream::wrappers::ReceiverStream;
 
+use appflowy_local_ai_chat::chat_plugin::ChatPluginOperation;
+use appflowy_local_ai_chat::embedding_plugin::EmbeddingPluginOperation;
+use appflowy_plugin::core::plugin::{PluginId, PluginInfo};
+use appflowy_plugin::error::SidecarError;
 use simsimd::SpatialSimilarity;
 use std::f64;
 use tracing_subscriber::fmt::Subscriber;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
-use appflowy_local_ai_chat::chat_plugin::ChatPluginOperation;
-use appflowy_local_ai_chat::embedding_plugin::EmbeddingPluginOperation;
-use appflowy_plugin::core::plugin::{PluginId, PluginInfo};
-use appflowy_plugin::error::SidecarError;
 
 pub struct LocalAITest {
   config: LocalAIConfiguration,
