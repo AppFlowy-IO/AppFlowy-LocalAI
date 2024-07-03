@@ -16,7 +16,7 @@ use std::thread;
 use std::time::Instant;
 use tokio_stream::wrappers::ReceiverStream;
 
-use tracing::{error, info};
+use tracing::{error, info, trace};
 
 #[derive(
   Default, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
@@ -143,6 +143,7 @@ impl Plugin {
   }
 }
 
+#[derive(Debug)]
 pub struct PluginInfo {
   pub name: String,
   pub exec_path: PathBuf,
@@ -153,6 +154,7 @@ pub(crate) async fn start_plugin_process(
   id: PluginId,
   state: WeakSidecarState,
 ) -> Result<(), anyhow::Error> {
+  trace!("start plugin process: {:?}, {:?}", id, plugin_info);
   let (tx, rx) = tokio::sync::oneshot::channel();
   let spawn_result = thread::Builder::new()
     .name(format!("<{}> core host thread", &plugin_info.name))
