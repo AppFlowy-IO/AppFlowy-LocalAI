@@ -328,7 +328,7 @@ impl LLMState {
   fn is_ready(&self) -> bool {
     let system = get_operating_system();
     if system.is_desktop() {
-      return matches!(self, LLMState::Ready { .. });
+      matches!(self, LLMState::Ready { .. })
     } else {
       false
     }
