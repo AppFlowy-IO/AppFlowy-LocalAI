@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use appflowy_plugin::core::plugin::{Plugin, PluginInfo};
 use appflowy_plugin::error::SidecarError;
 use appflowy_plugin::manager::SidecarManager;
-use appflowy_plugin::util::{get_operating_system, is_apple_silicon, OperatingSystem};
+use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -177,24 +177,22 @@ impl LocalChatLLMChat {
     let model_path = config.chat_model_path.clone();
     let params = match system {
       OperatingSystem::Windows => {
+        let device = config.device.as_str();
         serde_json::json!({
           "absolute_chat_model_path": model_path,
           // Currently, using GPU for windows will somehow cause windows to crash
-          "device": config.device,
+          "device": device,
         })
       },
       OperatingSystem::Linux => {
+        let device = config.device.as_str();
         serde_json::json!({
           "absolute_chat_model_path": model_path,
-          "device": config.device,
+          "device": device,
         })
       },
       OperatingSystem::MacOS => {
-        let mut device = config.device.as_str();
-        if is_apple_silicon().await.unwrap_or(false) {
-          device = "gpu";
-        }
-
+        let device = config.device.as_str();
         serde_json::json!({
           "absolute_chat_model_path": model_path,
           "device": device,
@@ -306,5 +304,10 @@ impl ChatPluginConfig {
       chat_model_path,
       device: "cpu".to_string(),
     })
+  }
+
+  pub fn with_device(mut self, device: &str) -> Self {
+    self.device = device.to_string();
+    self
   }
 }

@@ -37,7 +37,8 @@ impl LocalAITest {
       self.config.chat_bin_path.clone(),
       self.config.chat_model_absolute_path(),
     )
-    .unwrap();
+    .unwrap()
+    .with_device("cpu");
     self.chat_manager.init_chat_plugin(config).await.unwrap();
   }
 
