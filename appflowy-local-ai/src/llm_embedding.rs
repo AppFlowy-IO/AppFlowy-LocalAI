@@ -92,7 +92,7 @@ impl LocalEmbedding {
     if !is_loading {
       return Ok(());
     }
-    info!("[Embedding Plugin] wait for chat plugin to be ready");
+    info!("[Embedding Plugin] wait for plugin to be ready");
     let mut rx = self.state_notify.subscribe();
     let timeout_duration = Duration::from_secs(30);
     let result = timeout(timeout_duration, async {
