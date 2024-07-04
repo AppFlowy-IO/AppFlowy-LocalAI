@@ -29,6 +29,9 @@ impl LocalAITest {
     Ok(Self { config, manager })
   }
   pub async fn init_chat_plugin(&self) -> PluginId {
+    if !PathBuf::from(&self.config.chat_bin_path).exists() {
+      panic!("Model path does not exist: {:?}", self.config.chat_bin_path);
+    }
     let info = PluginInfo {
       name: "chat".to_string(),
       exec_path: self.config.chat_bin_path.clone(),
@@ -53,10 +56,17 @@ impl LocalAITest {
   }
 
   pub async fn init_embedding_plugin(&self) -> PluginId {
+    if !PathBuf::from(&self.config.embedding_bin_path).exists() {
+      panic!("Model path does not exist: {:?}", self.config.embedding_bin_path);
+    }
+
+
     let info = PluginInfo {
       name: "embedding".to_string(),
       exec_path: self.config.embedding_bin_path.clone(),
     };
+
+
     let plugin_id = self.manager.create_plugin(info).await.unwrap();
     let embedding_model_path = self.config.embedding_model_absolute_path();
     if !PathBuf::from(&embedding_model_path).exists() {
