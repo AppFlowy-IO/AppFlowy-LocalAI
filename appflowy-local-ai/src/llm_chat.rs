@@ -1,9 +1,10 @@
 use crate::chat_plugin::ChatPluginOperation;
+use crate::state::LLMState;
 use anyhow::{anyhow, Result};
-use appflowy_plugin::core::plugin::{Plugin, PluginId, PluginInfo};
+use appflowy_plugin::core::plugin::{Plugin, PluginInfo};
 use appflowy_plugin::error::SidecarError;
 use appflowy_plugin::manager::SidecarManager;
-use appflowy_plugin::util::{get_operating_system, OperatingSystem};
+use appflowy_plugin::util::{get_operating_system, is_apple_silicon, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -48,58 +49,6 @@ impl LocalChatLLMChat {
       state_notify,
       plugin_config: Default::default(),
     }
-  }
-
-  async fn update_state(&self, state: LLMState) {
-    *self.state.write().await = state.clone();
-    let _ = self.state_notify.send(state);
-  }
-
-  /// Waits for the plugin to be ready.
-  ///
-  /// The wait_plugin_ready method is an asynchronous function designed to ensure that the chat
-  /// plugin is in a ready state before allowing further operations. This is crucial for maintaining
-  /// the correct sequence of operations and preventing errors that could occur if operations are
-  /// attempted on an unready plugin.
-  ///
-  /// # Returns
-  ///
-  /// A `Result<()>` indicating success or failure.
-  async fn wait_plugin_ready(&self) -> Result<()> {
-    let is_loading = self.state.read().await.is_loading();
-    if !is_loading {
-      return Ok(());
-    }
-    info!("[Chat Plugin] wait for chat plugin to be ready");
-    let mut rx = self.state_notify.subscribe();
-    let timeout_duration = Duration::from_secs(30);
-    let result = timeout(timeout_duration, async {
-      while let Ok(state) = rx.recv().await {
-        if state.is_ready() {
-          break;
-        }
-      }
-    })
-    .await;
-
-    match result {
-      Ok(_) => {
-        trace!("[Chat Plugin] chat plugin is ready");
-        Ok(())
-      },
-      Err(_) => Err(anyhow!("Timeout while waiting for chat plugin to be ready")),
-    }
-  }
-
-  /// Retrieves the chat plugin.
-  ///
-  /// # Returns
-  ///
-  /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
-  async fn get_chat_plugin(&self) -> Result<Weak<Plugin>> {
-    let plugin_id = self.state.read().await.plugin_id()?;
-    let plugin = self.sidecar_manager.get_plugin(plugin_id).await?;
-    Ok(plugin)
   }
 
   /// Creates a new chat session.
@@ -195,7 +144,7 @@ impl LocalChatLLMChat {
     if self.state.read().await.is_ready() {
       if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
         if existing_config == &config {
-          trace!("[Chat Plugin] chat plugin already initialized with the same config");
+          trace!("[Chat Plugin] already initialized with the same config");
           return Ok(());
         } else {
           trace!(
@@ -231,19 +180,24 @@ impl LocalChatLLMChat {
         serde_json::json!({
           "absolute_chat_model_path": model_path,
           // Currently, using GPU for windows will somehow cause windows to crash
-          "device": "cpu",
+          "device": config.device,
         })
       },
       OperatingSystem::Linux => {
         serde_json::json!({
           "absolute_chat_model_path": model_path,
-          "device": "cpu",
+          "device": config.device,
         })
       },
       OperatingSystem::MacOS => {
+        let mut device = config.device.as_str();
+        if is_apple_silicon().await.unwrap_or(false) {
+          device = "gpu";
+        }
+
         serde_json::json!({
           "absolute_chat_model_path": model_path,
-          "device": "gpu",
+          "device": device,
         })
       },
       _ => {
@@ -261,17 +215,70 @@ impl LocalChatLLMChat {
     self.update_state(LLMState::Ready { plugin_id }).await;
     Ok(())
   }
+
+  async fn update_state(&self, state: LLMState) {
+    *self.state.write().await = state.clone();
+    let _ = self.state_notify.send(state);
+  }
+
+  /// Waits for the plugin to be ready.
+  ///
+  /// The wait_plugin_ready method is an asynchronous function designed to ensure that the chat
+  /// plugin is in a ready state before allowing further operations. This is crucial for maintaining
+  /// the correct sequence of operations and preventing errors that could occur if operations are
+  /// attempted on an unready plugin.
+  ///
+  /// # Returns
+  ///
+  /// A `Result<()>` indicating success or failure.
+  async fn wait_plugin_ready(&self) -> Result<()> {
+    let is_loading = self.state.read().await.is_loading();
+    if !is_loading {
+      return Ok(());
+    }
+    info!("[Chat Plugin] wait for chat plugin to be ready");
+    let mut rx = self.state_notify.subscribe();
+    let timeout_duration = Duration::from_secs(30);
+    let result = timeout(timeout_duration, async {
+      while let Ok(state) = rx.recv().await {
+        if state.is_ready() {
+          break;
+        }
+      }
+    })
+    .await;
+
+    match result {
+      Ok(_) => {
+        trace!("[Chat Plugin] is ready");
+        Ok(())
+      },
+      Err(_) => Err(anyhow!("Timeout while waiting for chat plugin to be ready")),
+    }
+  }
+
+  /// Retrieves the chat plugin.
+  ///
+  /// # Returns
+  ///
+  /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
+  async fn get_chat_plugin(&self) -> Result<Weak<Plugin>> {
+    let plugin_id = self.state.read().await.plugin_id()?;
+    let plugin = self.sidecar_manager.get_plugin(plugin_id).await?;
+    Ok(plugin)
+  }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct ChatPluginConfig {
   chat_bin_path: PathBuf,
   chat_model_path: PathBuf,
+  device: String,
 }
 
 impl ChatPluginConfig {
-  pub fn new(chat_bin: &str, chat_model_path: &str) -> Result<Self> {
-    let chat_bin_path = PathBuf::from(chat_bin);
+  pub fn new<T: Into<PathBuf>>(chat_bin_path: T, chat_model_path: T) -> Result<Self> {
+    let chat_bin_path = chat_bin_path.into();
     if !chat_bin_path.exists() {
       return Err(anyhow!(
         "Chat binary path does not exist: {:?}",
@@ -286,7 +293,7 @@ impl ChatPluginConfig {
     }
 
     // Check if local_model_dir exists and is a directory
-    let chat_model_path = PathBuf::from(&chat_model_path);
+    let chat_model_path = chat_model_path.into();
     if !chat_model_path.exists() {
       return Err(anyhow!("Local model does not exist: {:?}", chat_model_path));
     }
@@ -297,40 +304,7 @@ impl ChatPluginConfig {
     Ok(Self {
       chat_bin_path,
       chat_model_path,
+      device: "cpu".to_string(),
     })
-  }
-}
-
-#[derive(Debug, Clone)]
-pub enum LLMState {
-  Uninitialized,
-  Loading,
-  Ready { plugin_id: PluginId },
-}
-
-impl LLMState {
-  fn plugin_id(&self) -> Result<PluginId> {
-    match self {
-      LLMState::Ready { plugin_id } => Ok(*plugin_id),
-      _ => Err(anyhow!("chat plugin is not ready")),
-    }
-  }
-
-  fn is_loading(&self) -> bool {
-    matches!(self, LLMState::Loading)
-  }
-
-  #[allow(dead_code)]
-  fn is_uninitialized(&self) -> bool {
-    matches!(self, LLMState::Uninitialized)
-  }
-
-  fn is_ready(&self) -> bool {
-    let system = get_operating_system();
-    if system.is_desktop() {
-      matches!(self, LLMState::Ready { .. })
-    } else {
-      false
-    }
   }
 }

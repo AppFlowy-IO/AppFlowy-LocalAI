@@ -1,5 +1,5 @@
 [package]
-name = "appflowy-local-ai-chat"
+name = "appflowy-local-ai"
 version = "0.1.0"
 edition = "2021"
 

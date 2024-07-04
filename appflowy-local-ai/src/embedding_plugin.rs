@@ -15,7 +15,7 @@ impl EmbeddingPluginOperation {
     EmbeddingPluginOperation { plugin }
   }
 
-  pub async fn get_embeddings(&self, message: &str) -> Result<Vec<Vec<f64>>, SidecarError> {
+  pub async fn generate_embedding(&self, message: &str) -> Result<Vec<Vec<f64>>, SidecarError> {
     let plugin = self
       .plugin
       .upgrade()

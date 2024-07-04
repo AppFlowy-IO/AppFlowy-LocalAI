@@ -1,3 +1,5 @@
+use anyhow::Result;
+use tokio::process::Command;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperatingSystem {
   Unknown,
@@ -66,4 +68,17 @@ pub fn get_operating_system() -> OperatingSystem {
           OperatingSystem::Unknown
       }
   }
+}
+
+/// Checks if the current macOS is running on Apple Silicon (ARM-based) CPU.
+/// Returns true if it is an Apple Silicon CPU, false otherwise.
+pub async fn is_apple_silicon() -> Result<bool> {
+  // Execute the `uname -m` command to get the machine architecture
+  let output = Command::new("uname").arg("-m").output().await?;
+
+  // Convert the output to a string
+  let architecture = std::str::from_utf8(&output.stdout)?.trim();
+
+  // Check if the architecture is `arm64`
+  Ok(architecture == "arm64")
 }
