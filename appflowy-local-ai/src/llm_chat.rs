@@ -65,7 +65,7 @@ impl LocalChatLLMChat {
   /// A `Result<()>` indicating success or failure.
   pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
     trace!("[Chat Plugin] create chat: {}", chat_id);
-    self.wait_plugin_ready().await?;
+    self.wait_until_plugin_ready().await?;
 
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
@@ -110,7 +110,7 @@ impl LocalChatLLMChat {
     message: &str,
   ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
     trace!("[Chat Plugin] ask question: {}", message);
-    self.wait_plugin_ready().await?;
+    self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
     let stream = operation.stream_message(chat_id, message).await?;
@@ -128,6 +128,7 @@ impl LocalChatLLMChat {
   ///
   /// A `Result<String>` containing the generated answer.
   pub async fn generate_answer(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
+    self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
     let answer = operation.send_message(chat_id, message).await?;
@@ -185,7 +186,7 @@ impl LocalChatLLMChat {
     // init plugin
     trace!("[Chat Plugin] init chat plugin model: {:?}", plugin_id);
     let model_path = config.chat_model_path.clone();
-    let params = match system {
+    let mut params = match system {
       OperatingSystem::Windows => {
         let device = config.device.as_str();
         serde_json::json!({
@@ -213,6 +214,9 @@ impl LocalChatLLMChat {
       },
     };
 
+    params["verbose"] = serde_json::json!(config.verbose);
+    params["rag_enabled"] = serde_json::json!(config.rag_enabled);
+
     info!(
       "[Chat Plugin] setup chat plugin: {:?}, params: {:?}",
       plugin_id, params
@@ -239,7 +243,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<()>` indicating success or failure.
-  async fn wait_plugin_ready(&self) -> Result<()> {
+  async fn wait_until_plugin_ready(&self) -> Result<()> {
     let is_loading = self.state.read().await.is_loading();
     if !is_loading {
       return Ok(());
@@ -282,6 +286,8 @@ pub struct ChatPluginConfig {
   chat_bin_path: PathBuf,
   chat_model_path: PathBuf,
   device: String,
+  verbose: bool,
+  rag_enabled: bool,
 }
 
 impl ChatPluginConfig {
@@ -313,11 +319,22 @@ impl ChatPluginConfig {
       chat_bin_path,
       chat_model_path,
       device: "cpu".to_string(),
+      verbose: false,
+      rag_enabled: false,
     })
   }
 
   pub fn with_device(mut self, device: &str) -> Self {
     self.device = device.to_string();
+    self
+  }
+
+  pub fn with_verbose(mut self, verbose: bool) -> Self {
+    self.verbose = verbose;
+    self
+  }
+  pub fn with_rag_enabled(mut self, rag_enabled: bool) -> Self {
+    self.rag_enabled = rag_enabled;
     self
   }
 }
