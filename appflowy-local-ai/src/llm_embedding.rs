@@ -74,7 +74,7 @@ impl LocalEmbedding {
     Ok(())
   }
 
-  pub async fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
+  pub fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
     self.running_state_sender.subscribe()
   }
 
