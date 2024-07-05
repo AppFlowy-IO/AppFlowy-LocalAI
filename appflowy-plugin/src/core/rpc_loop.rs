@@ -1,5 +1,5 @@
 use crate::core::parser::{Call, MessageReader};
-use crate::core::plugin::RpcCtx;
+use crate::core::plugin::{RpcCtx, RunningStateSender};
 use crate::core::rpc_object::RpcObject;
 use crate::core::rpc_peer::{RawPeer, ResponsePayload, RpcState};
 use crate::error::{ReadError, RemoteError, SidecarError};
@@ -41,7 +41,7 @@ impl<'a, W: Write + 'static> Drop for PanicGuard<'a, W> {
     //   2. The `disconnect()` method is called on the peer.
     if thread::panicking() {
       error!("[RPC] panic guard hit, closing run loop");
-      self.0.disconnect();
+      self.0.unexpected_disconnect();
     }
   }
 }
@@ -55,8 +55,8 @@ pub struct RpcLoop<W: Write + 'static> {
 impl<W: Write + Send> RpcLoop<W> {
   /// Creates a new `RpcLoop` with the given output stream (which is used for
   /// sending requests and notifications, as well as responses).
-  pub fn new(writer: W) -> Self {
-    let rpc_peer = RawPeer(Arc::new(RpcState::new(writer)));
+  pub fn new(writer: W, running_state: RunningStateSender) -> Self {
+    let rpc_peer = RawPeer(Arc::new(RpcState::new(writer, running_state)));
     RpcLoop {
       reader: MessageReader::default(),
       peer: rpc_peer,
@@ -165,7 +165,7 @@ impl<W: Write + Send> RpcLoop<W> {
             Err(err) => {
               if self.peer.0.is_blocking() {
                 error!("[RPC] {:?}, disconnecting peer", err);
-                self.peer.disconnect();
+                self.peer.unexpected_disconnect();
               }
               self.peer.put_rpc_object(Err(err));
               break;
@@ -203,7 +203,7 @@ impl<W: Write + Send> RpcLoop<W> {
           Ok(json) => json,
           Err(err) => {
             error!("[RPC] error reading message: {:?}, disconnecting peer", err);
-            peer.disconnect();
+            peer.unexpected_disconnect();
             return err;
           },
         };
@@ -221,7 +221,7 @@ impl<W: Write + Send> RpcLoop<W> {
           },
           Err(err) => {
             error!("[RPC] error parsing message: {:?}", err);
-            peer.disconnect();
+            peer.unexpected_disconnect();
             return ReadError::UnknownRequest(err);
           },
           Ok(Call::Message(_msg)) => {

@@ -1,5 +1,5 @@
 use crate::error::SidecarError;
-use crate::manager::WeakSidecarState;
+use crate::manager::WeakPluginState;
 use std::fmt::{Display, Formatter};
 
 use crate::core::parser::ResponseParser;
@@ -60,6 +60,22 @@ pub struct RpcCtx {
   pub peer: RpcPeer,
 }
 
+#[derive(Debug, Clone)]
+pub enum RunningState {
+  /// The plugin is in the process of establishing a connection
+  Connecting,
+  /// The plugin has successfully established a connection
+  Connected,
+  /// The plugin is currently running
+  Running,
+  /// The plugin has been stopped intentionally
+  Stopped,
+  /// The plugin stopped unexpectedly
+  UnexpectedStop,
+}
+
+pub type RunningStateSender = tokio::sync::broadcast::Sender<RunningState>;
+
 #[derive(Clone)]
 pub struct Plugin {
   peer: RpcPeer,
@@ -67,6 +83,7 @@ pub struct Plugin {
   pub(crate) name: String,
   #[allow(dead_code)]
   pub(crate) process: Arc<Child>,
+  pub(crate) running_state: RunningStateSender,
 }
 
 impl Display for Plugin {
@@ -141,6 +158,10 @@ impl Plugin {
       },
     }
   }
+
+  pub fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
+    self.running_state.subscribe()
+  }
 }
 
 #[derive(Debug)]
@@ -152,7 +173,7 @@ pub struct PluginInfo {
 pub(crate) async fn start_plugin_process(
   plugin_info: PluginInfo,
   id: PluginId,
-  state: WeakSidecarState,
+  state: WeakPluginState,
 ) -> Result<(), anyhow::Error> {
   trace!("start plugin process: {:?}, {:?}", id, plugin_info);
   let (tx, rx) = tokio::sync::oneshot::channel();
@@ -167,9 +188,12 @@ pub(crate) async fn start_plugin_process(
 
       match child {
         Ok(mut child) => {
+          let (running_state, _) = tokio::sync::broadcast::channel(1);
           let child_stdin = child.stdin.take().unwrap();
           let child_stdout = child.stdout.take().unwrap();
-          let mut looper = RpcLoop::new(child_stdin);
+          let mut looper = RpcLoop::new(child_stdin, running_state.clone());
+          let _ = running_state.send(RunningState::Connecting);
+
           let peer: RpcPeer = Arc::new(looper.get_raw_peer());
           let name = plugin_info.name.clone();
           peer.send_rpc_notification("ping", &JsonValue::Array(Vec::new()));
@@ -179,9 +203,11 @@ pub(crate) async fn start_plugin_process(
             process: Arc::new(child),
             name,
             id,
+            running_state: running_state.clone(),
           };
 
           state.plugin_connect(Ok(plugin));
+          let _ = running_state.send(RunningState::Connected);
           let _ = tx.send(());
           let mut state = state;
           let err = looper.mainloop(
@@ -189,6 +215,7 @@ pub(crate) async fn start_plugin_process(
             || BufReader::new(child_stdout),
             &mut state,
           );
+          let _ = running_state.send(RunningState::Stopped);
           state.plugin_exit(id, err);
         },
         Err(err) => {

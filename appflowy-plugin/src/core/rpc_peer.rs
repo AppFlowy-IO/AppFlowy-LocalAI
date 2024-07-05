@@ -1,4 +1,4 @@
-use crate::core::plugin::{Peer, PluginId};
+use crate::core::plugin::{Peer, PluginId, RunningState, RunningStateSender};
 use crate::core::rpc_object::RpcObject;
 use crate::error::{ReadError, RemoteError, SidecarError};
 use parking_lot::{Condvar, Mutex};
@@ -58,6 +58,7 @@ pub struct RpcState<W: Write> {
   timers: Mutex<BinaryHeap<Timer>>,
   needs_exit: AtomicBool,
   is_blocking: AtomicBool,
+  running_state: RunningStateSender,
 }
 
 impl<W: Write> RpcState<W> {
@@ -70,7 +71,7 @@ impl<W: Write> RpcState<W> {
   /// # Returns
   ///
   /// A new `RawPeer` instance wrapped in an `Arc`.
-  pub fn new(writer: W) -> Self {
+  pub fn new(writer: W, running_state: RunningStateSender) -> Self {
     RpcState {
       rx_queue: Mutex::new(VecDeque::new()),
       rx_cvar: Condvar::new(),
@@ -80,6 +81,7 @@ impl<W: Write> RpcState<W> {
       timers: Mutex::new(BinaryHeap::new()),
       needs_exit: AtomicBool::new(false),
       is_blocking: Default::default(),
+      running_state,
     }
   }
 
@@ -342,8 +344,10 @@ impl<W: Write> RawPeer<W> {
   }
 
   /// send disconnect error to pending requests.
-  pub(crate) fn disconnect(&self) {
+  pub(crate) fn unexpected_disconnect(&self) {
     trace!("[RPC] disconnecting peer");
+    let _ = self.0.running_state.send(RunningState::UnexpectedStop);
+
     let mut pending = self.0.pending.lock();
     let ids = pending.keys().cloned().collect::<Vec<_>>();
     for id in &ids {

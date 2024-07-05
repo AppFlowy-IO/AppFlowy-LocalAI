@@ -14,7 +14,7 @@ use std::sync::{Arc, Weak};
 use tracing::{error, info, instrument, trace, warn};
 
 pub struct SidecarManager {
-  state: Arc<Mutex<SidecarState>>,
+  state: Arc<Mutex<PluginState>>,
   plugin_id_counter: Arc<AtomicI64>,
   operating_system: OperatingSystem,
 }
@@ -28,7 +28,7 @@ impl Default for SidecarManager {
 impl SidecarManager {
   pub fn new() -> Self {
     SidecarManager {
-      state: Arc::new(Mutex::new(SidecarState {
+      state: Arc::new(Mutex::new(PluginState {
         plugins: Vec::new(),
       })),
       plugin_id_counter: Arc::new(Default::default()),
@@ -43,7 +43,7 @@ impl SidecarManager {
       )));
     }
     let plugin_id = PluginId::from(self.plugin_id_counter.fetch_add(1, Ordering::SeqCst));
-    let weak_state = WeakSidecarState(Arc::downgrade(&self.state));
+    let weak_state = WeakPluginState(Arc::downgrade(&self.state));
     start_plugin_process(plugin_info, plugin_id, weak_state).await?;
     Ok(plugin_id)
   }
@@ -126,11 +126,11 @@ impl SidecarManager {
   }
 }
 
-pub struct SidecarState {
+pub struct PluginState {
   plugins: Vec<Arc<Plugin>>,
 }
 
-impl SidecarState {
+impl PluginState {
   pub fn plugin_connect(&mut self, plugin: Result<Plugin, io::Error>) {
     match plugin {
       Ok(plugin) => {
@@ -168,10 +168,10 @@ impl SidecarState {
 }
 
 #[derive(Clone)]
-pub struct WeakSidecarState(Weak<Mutex<SidecarState>>);
+pub struct WeakPluginState(Weak<Mutex<PluginState>>);
 
-impl WeakSidecarState {
-  pub fn upgrade(&self) -> Option<Arc<Mutex<SidecarState>>> {
+impl WeakPluginState {
+  pub fn upgrade(&self) -> Option<Arc<Mutex<PluginState>>> {
     self.0.upgrade()
   }
 
@@ -188,7 +188,7 @@ impl WeakSidecarState {
   }
 }
 
-impl Handler for WeakSidecarState {
+impl Handler for WeakPluginState {
   type Request = PluginCommand<String>;
 
   fn handle_request(
