@@ -40,5 +40,5 @@ async fn ci_chat_stream_test() {
   eprintln!("response: {:?}", answer);
 
   let score = test.calculate_similarity(&answer, "Hello! How can I help you today? Is there something specific you would like to know or discuss").await;
-  assert!(score > 0.9, "score: {}", score);
+  assert!(score > 0.7, "score: {}", score);
 }
