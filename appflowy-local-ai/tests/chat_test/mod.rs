@@ -1,7 +1,7 @@
 use crate::util::LocalAITest;
 use tokio_stream::StreamExt;
 #[tokio::test]
-async fn generate_embedding_test() {
+async fn ci_generate_embedding_test() {
   let test = LocalAITest::new().unwrap();
   test.init_embedding_plugin().await;
 
@@ -24,7 +24,7 @@ async fn load_chat_model_test() {
 }
 
 #[tokio::test]
-async fn chat_stream_test() {
+async fn ci_chat_stream_test() {
   let test = LocalAITest::new().unwrap();
   test.init_chat_plugin().await;
   test.init_embedding_plugin().await;
