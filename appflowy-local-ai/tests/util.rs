@@ -75,6 +75,14 @@ impl LocalAITest {
       .unwrap()
   }
 
+  pub async fn generate_embedding(&self, message: &str) -> Vec<Vec<f64>> {
+    self
+      .embedding_manager
+      .generate_embedding(message)
+      .await
+      .unwrap()
+  }
+
   pub async fn calculate_similarity(&self, message1: &str, message2: &str) -> f64 {
     let left = self
       .embedding_manager
