@@ -1,6 +1,6 @@
 use crate::core::plugin::{Peer, PluginId, RunningState, RunningStateSender};
 use crate::core::rpc_object::RpcObject;
-use crate::error::{ReadError, RemoteError, SidecarError};
+use crate::error::{PluginError, ReadError, RemoteError};
 use parking_lot::{Condvar, Mutex};
 use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value as JsonValue};
@@ -116,11 +116,11 @@ impl<W: Write + Send + 'static> Peer for RawPeer<W> {
     self.send_rpc(method, params, ResponseHandler::Callback(f));
   }
 
-  fn send_rpc_request(&self, method: &str, params: &JsonValue) -> Result<JsonValue, SidecarError> {
+  fn send_rpc_request(&self, method: &str, params: &JsonValue) -> Result<JsonValue, PluginError> {
     let (tx, rx) = mpsc::channel();
     self.0.is_blocking.store(true, Ordering::Release);
     self.send_rpc(method, params, ResponseHandler::Chan(tx));
-    rx.recv().unwrap_or(Err(SidecarError::PeerDisconnect))
+    rx.recv().unwrap_or(Err(PluginError::PeerDisconnect))
   }
 
   fn request_is_pending(&self) -> bool {
@@ -212,7 +212,7 @@ impl<W: Write> RawPeer<W> {
     })) {
       let mut pending = self.0.pending.lock();
       if let Some(rh) = pending.remove(&id) {
-        rh.invoke(Err(SidecarError::Io(e)));
+        rh.invoke(Err(PluginError::Io(e)));
       }
     }
   }
@@ -252,7 +252,7 @@ impl<W: Write> RawPeer<W> {
   pub(crate) fn handle_response(
     &self,
     request_id: u64,
-    resp: Result<ResponsePayload, SidecarError>,
+    resp: Result<ResponsePayload, PluginError>,
   ) {
     let request_id = request_id as usize;
     let handler = {
@@ -352,7 +352,7 @@ impl<W: Write> RawPeer<W> {
     let ids = pending.keys().cloned().collect::<Vec<_>>();
     for id in &ids {
       let callback = pending.remove(id).unwrap();
-      callback.invoke(Err(SidecarError::PeerDisconnect));
+      callback.invoke(Err(PluginError::PeerDisconnect));
     }
     self.0.needs_exit.store(true, Ordering::Relaxed);
   }
@@ -417,12 +417,12 @@ impl Display for ResponsePayload {
 
 pub type Response = Result<ResponsePayload, RemoteError>;
 
-pub trait ResponseStream: Stream<Item = Result<JsonValue, SidecarError>> + Unpin + Send {}
+pub trait ResponseStream: Stream<Item = Result<JsonValue, PluginError>> + Unpin + Send {}
 
-impl<T> ResponseStream for T where T: Stream<Item = Result<JsonValue, SidecarError>> + Unpin + Send {}
+impl<T> ResponseStream for T where T: Stream<Item = Result<JsonValue, PluginError>> + Unpin + Send {}
 
 enum ResponseHandler {
-  Chan(mpsc::Sender<Result<JsonValue, SidecarError>>),
+  Chan(mpsc::Sender<Result<JsonValue, PluginError>>),
   Callback(Box<dyn OneShotCallback>),
   StreamCallback(Arc<CloneableCallback>),
 }
@@ -437,21 +437,21 @@ impl ResponseHandler {
 }
 
 pub trait OneShotCallback: Send {
-  fn call(self: Box<Self>, result: Result<JsonValue, SidecarError>);
+  fn call(self: Box<Self>, result: Result<JsonValue, PluginError>);
 }
 
-impl<F: Send + FnOnce(Result<JsonValue, SidecarError>)> OneShotCallback for F {
-  fn call(self: Box<Self>, result: Result<JsonValue, SidecarError>) {
+impl<F: Send + FnOnce(Result<JsonValue, PluginError>)> OneShotCallback for F {
+  fn call(self: Box<Self>, result: Result<JsonValue, PluginError>) {
     (self)(result)
   }
 }
 
 pub trait Callback: Send + Sync {
-  fn call(&self, result: Result<JsonValue, SidecarError>);
+  fn call(&self, result: Result<JsonValue, PluginError>);
 }
 
-impl<F: Send + Sync + Fn(Result<JsonValue, SidecarError>)> Callback for F {
-  fn call(&self, result: Result<JsonValue, SidecarError>) {
+impl<F: Send + Sync + Fn(Result<JsonValue, PluginError>)> Callback for F {
+  fn call(&self, result: Result<JsonValue, PluginError>) {
     (*self)(result)
   }
 }
@@ -467,13 +467,13 @@ impl CloneableCallback {
     }
   }
 
-  pub fn call(&self, result: Result<JsonValue, SidecarError>) {
+  pub fn call(&self, result: Result<JsonValue, PluginError>) {
     self.callback.call(result)
   }
 }
 
 impl ResponseHandler {
-  fn invoke(self, result: Result<JsonValue, SidecarError>) {
+  fn invoke(self, result: Result<JsonValue, PluginError>) {
     match self {
       ResponseHandler::Chan(tx) => {
         let _ = tx.send(result);

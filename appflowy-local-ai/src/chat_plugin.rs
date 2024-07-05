@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use appflowy_plugin::core::parser::{DefaultResponseParser, ResponseParser};
 use appflowy_plugin::core::plugin::Plugin;
-use appflowy_plugin::error::{RemoteError, SidecarError};
+use appflowy_plugin::error::{PluginError, RemoteError};
 use bytes::Bytes;
 use serde_json::json;
 use serde_json::Value as JsonValue;
@@ -18,18 +18,18 @@ impl ChatPluginOperation {
     ChatPluginOperation { plugin }
   }
 
-  fn get_plugin(&self) -> Result<std::sync::Arc<Plugin>, SidecarError> {
+  fn get_plugin(&self) -> Result<std::sync::Arc<Plugin>, PluginError> {
     self
       .plugin
       .upgrade()
-      .ok_or_else(|| SidecarError::Internal(anyhow!("Plugin is dropped")))
+      .ok_or_else(|| PluginError::Internal(anyhow!("Plugin is dropped")))
   }
 
   async fn send_request<T: ResponseParser>(
     &self,
     method: &str,
     params: JsonValue,
-  ) -> Result<T::ValueType, SidecarError> {
+  ) -> Result<T::ValueType, PluginError> {
     let plugin = self.get_plugin()?;
     let mut request = json!({ "method": method });
     request
@@ -39,19 +39,19 @@ impl ChatPluginOperation {
     plugin.async_request::<T>("handle", &request).await
   }
 
-  pub async fn create_chat(&self, chat_id: &str) -> Result<(), SidecarError> {
+  pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
     self
       .send_request::<DefaultResponseParser>("create_chat", json!({ "chat_id": chat_id }))
       .await
   }
 
-  pub async fn close_chat(&self, chat_id: &str) -> Result<(), SidecarError> {
+  pub async fn close_chat(&self, chat_id: &str) -> Result<(), PluginError> {
     self
       .send_request::<DefaultResponseParser>("close_chat", json!({ "chat_id": chat_id }))
       .await
   }
 
-  pub async fn send_message(&self, chat_id: &str, message: &str) -> Result<String, SidecarError> {
+  pub async fn send_message(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
     self
       .send_request::<ChatResponseParser>(
         "answer",
@@ -65,19 +65,17 @@ impl ChatPluginOperation {
     &self,
     chat_id: &str,
     message: &str,
-  ) -> Result<ReceiverStream<Result<Bytes, SidecarError>>, anyhow::Error> {
+  ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
     let plugin = self.get_plugin()?;
     let params = json!({
         "chat_id": chat_id,
         "method": "stream_answer",
         "params": { "content": message }
     });
-    plugin
-      .stream_request::<ChatStreamResponseParser>("handle", &params)
-      .map_err(|e| e.into())
+    plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
 
-  pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<JsonValue>, SidecarError> {
+  pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<JsonValue>, PluginError> {
     self
       .send_request::<ChatRelatedQuestionsResponseParser>(
         "related_question",

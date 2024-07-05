@@ -2,7 +2,7 @@ use crate::core::parser::{Call, MessageReader};
 use crate::core::plugin::{RpcCtx, RunningStateSender};
 use crate::core::rpc_object::RpcObject;
 use crate::core::rpc_peer::{RawPeer, ResponsePayload, RpcState};
-use crate::error::{ReadError, RemoteError, SidecarError};
+use crate::error::{PluginError, ReadError, RemoteError};
 use serde::de::DeserializeOwned;
 
 use std::io::{BufRead, Write};
@@ -175,14 +175,14 @@ impl<W: Write + Send> RpcLoop<W> {
             let request_id = json.get_id().unwrap();
             match json.into_response() {
               Ok(resp) => {
-                let resp = resp.map_err(SidecarError::from);
+                let resp = resp.map_err(PluginError::from);
                 self.peer.handle_response(request_id, resp);
               },
               Err(msg) => {
                 error!("[RPC] failed to parse response: {}", msg);
                 self
                   .peer
-                  .handle_response(request_id, Err(SidecarError::InvalidResponse));
+                  .handle_response(request_id, Err(PluginError::InvalidResponse));
               },
             }
           } else {

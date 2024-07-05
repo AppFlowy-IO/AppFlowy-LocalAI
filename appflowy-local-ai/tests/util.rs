@@ -1,7 +1,7 @@
 use anyhow::Result;
 use appflowy_local_ai::llm_chat::{ChatPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::llm_embedding::{EmbeddingPluginConfig, LocalEmbedding};
-use appflowy_plugin::error::SidecarError;
+use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
 use bytes::Bytes;
 use simsimd::SpatialSimilarity;
@@ -67,7 +67,7 @@ impl LocalAITest {
     &self,
     chat_id: &str,
     message: &str,
-  ) -> ReceiverStream<Result<Bytes, SidecarError>> {
+  ) -> ReceiverStream<Result<Bytes, PluginError>> {
     self
       .chat_manager
       .ask_question(chat_id, message)

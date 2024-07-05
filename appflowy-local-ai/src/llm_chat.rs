@@ -2,7 +2,7 @@ use crate::chat_plugin::ChatPluginOperation;
 use crate::state::LLMState;
 use anyhow::{anyhow, Result};
 use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
-use appflowy_plugin::error::SidecarError;
+use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
@@ -63,7 +63,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<()>` indicating success or failure.
-  pub async fn create_chat(&self, chat_id: &str) -> Result<()> {
+  pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
     trace!("[Chat Plugin] create chat: {}", chat_id);
     self.wait_plugin_ready().await?;
 
@@ -108,7 +108,7 @@ impl LocalChatLLMChat {
     &self,
     chat_id: &str,
     message: &str,
-  ) -> Result<ReceiverStream<anyhow::Result<Bytes, SidecarError>>> {
+  ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
     trace!("[Chat Plugin] ask question: {}", message);
     self.wait_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
@@ -127,7 +127,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<String>` containing the generated answer.
-  pub async fn generate_answer(&self, chat_id: &str, message: &str) -> Result<String> {
+  pub async fn generate_answer(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
     let answer = operation.send_message(chat_id, message).await?;
@@ -217,7 +217,7 @@ impl LocalChatLLMChat {
       "[Chat Plugin] setup chat plugin: {:?}, params: {:?}",
       plugin_id, params
     );
-    let plugin = self.plugin_manager.init_plugin(plugin_id, params)?;
+    let plugin = self.plugin_manager.init_plugin(plugin_id, params).await?;
     info!("[Chat Plugin] {} setup success", plugin);
     self.plugin_config.write().await.replace(config);
     self.update_state(LLMState::Ready { plugin_id }).await;
@@ -270,7 +270,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
-  async fn get_chat_plugin(&self) -> Result<Weak<Plugin>> {
+  async fn get_chat_plugin(&self) -> Result<Weak<Plugin>, PluginError> {
     let plugin_id = self.state.read().await.plugin_id()?;
     let plugin = self.plugin_manager.get_plugin(plugin_id).await?;
     Ok(plugin)

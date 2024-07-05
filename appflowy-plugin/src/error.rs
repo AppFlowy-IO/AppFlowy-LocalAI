@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 /// The error type of `tauri-utils`.
 #[derive(Debug, thiserror::Error)]
-pub enum SidecarError {
+pub enum PluginError {
   /// An IO error occurred on the underlying communication channel.
   #[error(transparent)]
   Io(#[from] io::Error),
@@ -17,6 +17,9 @@ pub enum SidecarError {
   /// The peer sent a response containing the id, but was malformed.
   #[error("Invalid response.")]
   InvalidResponse,
+
+  #[error("Plugin not connected.")]
+  PluginNotConnected,
 
   #[error(transparent)]
   Internal(#[from] anyhow::Error),
@@ -102,9 +105,9 @@ impl From<serde_json::Error> for RemoteError {
   }
 }
 
-impl From<RemoteError> for SidecarError {
-  fn from(err: RemoteError) -> SidecarError {
-    SidecarError::RemoteError(err)
+impl From<RemoteError> for PluginError {
+  fn from(err: RemoteError) -> PluginError {
+    PluginError::RemoteError(err)
   }
 }
 

@@ -4,7 +4,7 @@ use crate::state::LLMState;
 use anyhow::anyhow;
 use anyhow::Result;
 use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
-use appflowy_plugin::error::SidecarError;
+use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::get_operating_system;
 use serde_json::json;
@@ -39,7 +39,7 @@ impl LocalEmbedding {
   pub async fn init_embedding_plugin(
     &self,
     config: EmbeddingPluginConfig,
-  ) -> Result<(), SidecarError> {
+  ) -> Result<(), PluginError> {
     if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
       if existing_config == &config {
         trace!("[Embedding Plugin] already initialized with the same config");
@@ -63,12 +63,15 @@ impl LocalEmbedding {
       .plugin_manager
       .create_plugin(info, self.running_state_sender.clone())
       .await?;
-    let plugin = self.plugin_manager.init_plugin(
-      plugin_id,
-      json!({
-          "absolute_model_path":config.model_path,
-      }),
-    )?;
+    let plugin = self
+      .plugin_manager
+      .init_plugin(
+        plugin_id,
+        json!({
+            "absolute_model_path":config.model_path,
+        }),
+      )
+      .await?;
     info!("[Embedding Plugin] {} setup success", plugin);
     self.update_state(LLMState::Ready { plugin_id }).await;
     Ok(())
@@ -78,7 +81,7 @@ impl LocalEmbedding {
     self.running_state_sender.subscribe()
   }
 
-  pub async fn generate_embedding(&self, text: &str) -> Result<Vec<Vec<f64>>, SidecarError> {
+  pub async fn generate_embedding(&self, text: &str) -> Result<Vec<Vec<f64>>, PluginError> {
     trace!("[Embedding Plugin] generate embedding for text: {}", text);
     self.wait_plugin_ready().await?;
     let plugin = self.get_embedding_plugin().await?;

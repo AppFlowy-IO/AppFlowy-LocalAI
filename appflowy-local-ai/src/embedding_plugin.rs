@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use appflowy_plugin::core::parser::ResponseParser;
 use appflowy_plugin::core::plugin::Plugin;
-use appflowy_plugin::error::{RemoteError, SidecarError};
+use appflowy_plugin::error::{PluginError, RemoteError};
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use std::sync::Weak;
@@ -15,11 +15,11 @@ impl EmbeddingPluginOperation {
     EmbeddingPluginOperation { plugin }
   }
 
-  pub async fn generate_embedding(&self, message: &str) -> Result<Vec<Vec<f64>>, SidecarError> {
+  pub async fn generate_embedding(&self, message: &str) -> Result<Vec<Vec<f64>>, PluginError> {
     let plugin = self
       .plugin
       .upgrade()
-      .ok_or(SidecarError::Internal(anyhow!("Plugin is dropped")))?;
+      .ok_or(PluginError::Internal(anyhow!("Plugin is dropped")))?;
     let params = json!({"method": "get_embeddings", "params": {"input": message }});
     plugin
       .async_request::<EmbeddingResponseParse>("handle", &params)

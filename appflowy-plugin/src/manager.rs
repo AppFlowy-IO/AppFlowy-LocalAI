@@ -4,7 +4,7 @@ use crate::core::plugin::{
 };
 use crate::core::rpc_loop::Handler;
 use crate::core::rpc_peer::{PluginCommand, ResponsePayload};
-use crate::error::{ReadError, RemoteError, SidecarError};
+use crate::error::{PluginError, ReadError, RemoteError};
 use anyhow::anyhow;
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -42,9 +42,9 @@ impl PluginManager {
     &self,
     plugin_info: PluginInfo,
     running_state_sender: RunningStateSender,
-  ) -> Result<PluginId, SidecarError> {
+  ) -> Result<PluginId, PluginError> {
     if self.operating_system.is_not_desktop() {
-      return Err(SidecarError::Internal(anyhow!(
+      return Err(PluginError::Internal(anyhow!(
         "plugin not supported on this platform"
       )));
     }
@@ -54,20 +54,20 @@ impl PluginManager {
     Ok(plugin_id)
   }
 
-  pub async fn get_plugin(&self, plugin_id: PluginId) -> Result<Weak<Plugin>, SidecarError> {
+  pub async fn get_plugin(&self, plugin_id: PluginId) -> Result<Weak<Plugin>, PluginError> {
     let state = self.state.lock();
     let plugin = state
       .plugins
       .iter()
       .find(|p| p.id == plugin_id)
-      .ok_or(anyhow!("plugin not found"))?;
+      .ok_or(PluginError::PluginNotConnected)?;
     Ok(Arc::downgrade(plugin))
   }
 
   #[instrument(skip(self), err)]
-  pub async fn remove_plugin(&self, id: PluginId) -> Result<(), SidecarError> {
+  pub async fn remove_plugin(&self, id: PluginId) -> Result<(), PluginError> {
     if self.operating_system.is_not_desktop() {
-      return Err(SidecarError::Internal(anyhow!(
+      return Err(PluginError::Internal(anyhow!(
         "plugin not supported on this platform"
       )));
     }
@@ -77,37 +77,38 @@ impl PluginManager {
     Ok(())
   }
 
-  pub fn init_plugin(&self, id: PluginId, init_params: Value) -> Result<Arc<Plugin>, SidecarError> {
+  pub async fn init_plugin(
+    &self,
+    id: PluginId,
+    init_params: Value,
+  ) -> Result<Arc<Plugin>, PluginError> {
     trace!("init plugin: {:?}, {:?}", id, init_params);
     if self.operating_system.is_not_desktop() {
-      return Err(SidecarError::Internal(anyhow!(
+      return Err(PluginError::Internal(anyhow!(
         "plugin not supported on this platform"
       )));
     }
 
-    let state = self.state.lock();
-    let plugin = state
-      .plugins
-      .iter()
-      .find(|p| p.id == id)
-      .ok_or(anyhow!("plugin not found"))?;
+    let plugin = self
+      .get_plugin(id)
+      .await?
+      .upgrade()
+      .ok_or_else(|| PluginError::PluginNotConnected)?;
     plugin.initialize(init_params)?;
-
     Ok(plugin.clone())
   }
 
-  pub fn send_request<P: ResponseParser>(
+  pub async fn send_request<P: ResponseParser>(
     &self,
     id: PluginId,
     method: &str,
     request: Value,
-  ) -> Result<P::ValueType, SidecarError> {
-    let state = self.state.lock();
-    let plugin = state
-      .plugins
-      .iter()
-      .find(|p| p.id == id)
-      .ok_or(anyhow!("plugin not found"))?;
+  ) -> Result<P::ValueType, PluginError> {
+    let plugin = self
+      .get_plugin(id)
+      .await?
+      .upgrade()
+      .ok_or_else(|| PluginError::PluginNotConnected)?;
     let resp = plugin.request(method, &request)?;
     let value = P::parse_json(resp)?;
     Ok(value)
@@ -118,15 +119,12 @@ impl PluginManager {
     id: PluginId,
     method: &str,
     request: Value,
-  ) -> Result<P::ValueType, SidecarError> {
+  ) -> Result<P::ValueType, PluginError> {
     let plugin = self
-      .state
-      .lock()
-      .plugins
-      .iter()
-      .find(|p| p.id == id)
-      .ok_or(anyhow!("plugin not found"))
-      .cloned()?;
+      .get_plugin(id)
+      .await?
+      .upgrade()
+      .ok_or_else(|| PluginError::PluginNotConnected)?;
     let value = plugin.async_request::<P>(method, &request).await?;
     Ok(value)
   }

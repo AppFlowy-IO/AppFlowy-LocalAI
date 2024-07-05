@@ -1,4 +1,4 @@
-use crate::error::SidecarError;
+use crate::error::PluginError;
 use crate::manager::WeakPluginState;
 use std::fmt::{Display, Formatter};
 
@@ -43,7 +43,7 @@ pub trait Peer: Send + Sync + 'static {
   fn async_send_rpc_request(&self, method: &str, params: &JsonValue, f: Box<dyn OneShotCallback>);
   /// Sends a synchronous RPC request to the peer and waits for the result.
   /// Returns the result of the request or an error.
-  fn send_rpc_request(&self, method: &str, params: &JsonValue) -> Result<JsonValue, SidecarError>;
+  fn send_rpc_request(&self, method: &str, params: &JsonValue) -> Result<JsonValue, PluginError>;
 
   /// Checks if there is an incoming request pending, intended to reduce latency for bulk operations done in the background.
   fn request_is_pending(&self) -> bool;
@@ -99,12 +99,12 @@ impl Display for Plugin {
 }
 
 impl Plugin {
-  pub fn initialize(&self, value: JsonValue) -> Result<(), SidecarError> {
+  pub fn initialize(&self, value: JsonValue) -> Result<(), PluginError> {
     self.peer.send_rpc_request("initialize", &value)?;
     Ok(())
   }
 
-  pub fn request(&self, method: &str, params: &JsonValue) -> Result<JsonValue, SidecarError> {
+  pub fn request(&self, method: &str, params: &JsonValue) -> Result<JsonValue, PluginError> {
     self.peer.send_rpc_request(method, params)
   }
 
@@ -112,7 +112,7 @@ impl Plugin {
     &self,
     method: &str,
     params: &JsonValue,
-  ) -> Result<P::ValueType, SidecarError> {
+  ) -> Result<P::ValueType, PluginError> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     self.peer.async_send_rpc_request(
       method,
@@ -122,7 +122,7 @@ impl Plugin {
       }),
     );
     let value = rx.await.map_err(|err| {
-      SidecarError::Internal(anyhow!("error waiting for async response: {:?}", err))
+      PluginError::Internal(anyhow!("error waiting for async response: {:?}", err))
     })??;
     let value = P::parse_json(value)?;
     Ok(value)
@@ -132,12 +132,12 @@ impl Plugin {
     &self,
     method: &str,
     params: &JsonValue,
-  ) -> Result<ReceiverStream<Result<P::ValueType, SidecarError>>, SidecarError> {
+  ) -> Result<ReceiverStream<Result<P::ValueType, PluginError>>, PluginError> {
     let (tx, stream) = tokio::sync::mpsc::channel(100);
     let stream = ReceiverStream::new(stream);
     let callback = CloneableCallback::new(move |result| match result {
       Ok(json) => {
-        let result = P::parse_json(json).map_err(SidecarError::from);
+        let result = P::parse_json(json).map_err(PluginError::from);
         let _ = tx.blocking_send(result);
       },
       Err(err) => {
