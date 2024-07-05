@@ -1,9 +1,9 @@
 use crate::chat_plugin::ChatPluginOperation;
 use crate::state::LLMState;
 use anyhow::{anyhow, Result};
-use appflowy_plugin::core::plugin::{Plugin, PluginInfo};
+use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
 use appflowy_plugin::error::SidecarError;
-use appflowy_plugin::manager::SidecarManager;
+use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
@@ -34,20 +34,23 @@ impl LocalLLMSetting {
 }
 
 pub struct LocalChatLLMChat {
-  sidecar_manager: Arc<SidecarManager>,
+  plugin_manager: Arc<PluginManager>,
   state: RwLock<LLMState>,
   state_notify: tokio::sync::broadcast::Sender<LLMState>,
   plugin_config: RwLock<Option<ChatPluginConfig>>,
+  running_state_sender: RunningStateSender,
 }
 
 impl LocalChatLLMChat {
-  pub fn new(sidecar_manager: Arc<SidecarManager>) -> Self {
+  pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
+    let running_state_sender = tokio::sync::broadcast::channel(10).0;
     let (state_notify, _) = tokio::sync::broadcast::channel(10);
     Self {
-      sidecar_manager,
+      plugin_manager,
       state: RwLock::new(LLMState::Loading),
       state_notify,
       plugin_config: Default::default(),
+      running_state_sender,
     }
   }
 
@@ -85,6 +88,10 @@ impl LocalChatLLMChat {
     let operation = ChatPluginOperation::new(plugin);
     operation.close_chat(chat_id).await?;
     Ok(())
+  }
+
+  pub async fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
+    self.running_state_sender.subscribe()
   }
 
   /// Asks a question and returns a stream of responses.
@@ -130,7 +137,7 @@ impl LocalChatLLMChat {
   #[instrument(skip_all, err)]
   pub async fn destroy_chat_plugin(&self) -> Result<()> {
     if let Ok(plugin_id) = self.state.read().await.plugin_id() {
-      if let Err(err) = self.sidecar_manager.remove_plugin(plugin_id).await {
+      if let Err(err) = self.plugin_manager.remove_plugin(plugin_id).await {
         error!("remove plugin failed: {:?}", err);
       }
     }
@@ -170,7 +177,10 @@ impl LocalChatLLMChat {
       name: "chat_plugin".to_string(),
       exec_path: config.chat_bin_path.clone(),
     };
-    let plugin_id = self.sidecar_manager.create_plugin(plugin_info).await?;
+    let plugin_id = self
+      .plugin_manager
+      .create_plugin(plugin_info, self.running_state_sender.clone())
+      .await?;
 
     // init plugin
     trace!("[Chat Plugin] init chat plugin model: {:?}", plugin_id);
@@ -207,7 +217,7 @@ impl LocalChatLLMChat {
       "[Chat Plugin] setup chat plugin: {:?}, params: {:?}",
       plugin_id, params
     );
-    let plugin = self.sidecar_manager.init_plugin(plugin_id, params)?;
+    let plugin = self.plugin_manager.init_plugin(plugin_id, params)?;
     info!("[Chat Plugin] {} setup success", plugin);
     self.plugin_config.write().await.replace(config);
     self.update_state(LLMState::Ready { plugin_id }).await;
@@ -262,7 +272,7 @@ impl LocalChatLLMChat {
   /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
   async fn get_chat_plugin(&self) -> Result<Weak<Plugin>> {
     let plugin_id = self.state.read().await.plugin_id()?;
-    let plugin = self.sidecar_manager.get_plugin(plugin_id).await?;
+    let plugin = self.plugin_manager.get_plugin(plugin_id).await?;
     Ok(plugin)
   }
 }

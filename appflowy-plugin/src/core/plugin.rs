@@ -174,6 +174,7 @@ pub(crate) async fn start_plugin_process(
   plugin_info: PluginInfo,
   id: PluginId,
   state: WeakPluginState,
+  running_state: RunningStateSender,
 ) -> Result<(), anyhow::Error> {
   trace!("start plugin process: {:?}, {:?}", id, plugin_info);
   let (tx, rx) = tokio::sync::oneshot::channel();
@@ -188,7 +189,6 @@ pub(crate) async fn start_plugin_process(
 
       match child {
         Ok(mut child) => {
-          let (running_state, _) = tokio::sync::broadcast::channel(1);
           let child_stdin = child.stdin.take().unwrap();
           let child_stdout = child.stdout.take().unwrap();
           let mut looper = RpcLoop::new(child_stdin, running_state.clone());

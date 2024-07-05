@@ -1,5 +1,7 @@
 use crate::core::parser::ResponseParser;
-use crate::core::plugin::{start_plugin_process, Plugin, PluginId, PluginInfo, RpcCtx};
+use crate::core::plugin::{
+  start_plugin_process, Plugin, PluginId, PluginInfo, RpcCtx, RunningStateSender,
+};
 use crate::core::rpc_loop::Handler;
 use crate::core::rpc_peer::{PluginCommand, ResponsePayload};
 use crate::error::{ReadError, RemoteError, SidecarError};
@@ -13,21 +15,21 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Weak};
 use tracing::{error, info, instrument, trace, warn};
 
-pub struct SidecarManager {
+pub struct PluginManager {
   state: Arc<Mutex<PluginState>>,
   plugin_id_counter: Arc<AtomicI64>,
   operating_system: OperatingSystem,
 }
 
-impl Default for SidecarManager {
+impl Default for PluginManager {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl SidecarManager {
+impl PluginManager {
   pub fn new() -> Self {
-    SidecarManager {
+    PluginManager {
       state: Arc::new(Mutex::new(PluginState {
         plugins: Vec::new(),
       })),
@@ -36,7 +38,11 @@ impl SidecarManager {
     }
   }
 
-  pub async fn create_plugin(&self, plugin_info: PluginInfo) -> Result<PluginId, SidecarError> {
+  pub async fn create_plugin(
+    &self,
+    plugin_info: PluginInfo,
+    running_state_sender: RunningStateSender,
+  ) -> Result<PluginId, SidecarError> {
     if self.operating_system.is_not_desktop() {
       return Err(SidecarError::Internal(anyhow!(
         "plugin not supported on this platform"
@@ -44,7 +50,7 @@ impl SidecarManager {
     }
     let plugin_id = PluginId::from(self.plugin_id_counter.fetch_add(1, Ordering::SeqCst));
     let weak_state = WeakPluginState(Arc::downgrade(&self.state));
-    start_plugin_process(plugin_info, plugin_id, weak_state).await?;
+    start_plugin_process(plugin_info, plugin_id, weak_state, running_state_sender).await?;
     Ok(plugin_id)
   }
 

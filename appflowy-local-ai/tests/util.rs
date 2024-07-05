@@ -2,7 +2,7 @@ use anyhow::Result;
 use appflowy_local_ai::llm_chat::{ChatPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::llm_embedding::{EmbeddingPluginConfig, LocalEmbedding};
 use appflowy_plugin::error::SidecarError;
-use appflowy_plugin::manager::SidecarManager;
+use appflowy_plugin::manager::PluginManager;
 use bytes::Bytes;
 use simsimd::SpatialSimilarity;
 use std::f64;
@@ -22,7 +22,7 @@ pub struct LocalAITest {
 impl LocalAITest {
   pub fn new() -> Result<Self> {
     let config = LocalAIConfiguration::new()?;
-    let sidecar = Arc::new(SidecarManager::new());
+    let sidecar = Arc::new(PluginManager::new());
     let chat_manager = LocalChatLLMChat::new(sidecar.clone());
     let embedding_manager = LocalEmbedding::new(sidecar);
     Ok(Self {

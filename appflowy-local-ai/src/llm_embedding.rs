@@ -3,9 +3,9 @@ use crate::embedding_plugin::EmbeddingPluginOperation;
 use crate::state::LLMState;
 use anyhow::anyhow;
 use anyhow::Result;
-use appflowy_plugin::core::plugin::{Plugin, PluginInfo};
+use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
 use appflowy_plugin::error::SidecarError;
-use appflowy_plugin::manager::SidecarManager;
+use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::get_operating_system;
 use serde_json::json;
 use std::path::PathBuf;
@@ -16,20 +16,23 @@ use tokio::time::timeout;
 use tracing::{info, trace};
 
 pub struct LocalEmbedding {
-  sidecar_manager: Arc<SidecarManager>,
+  plugin_manager: Arc<PluginManager>,
   plugin_config: RwLock<Option<EmbeddingPluginConfig>>,
   state_notify: tokio::sync::broadcast::Sender<LLMState>,
   state: RwLock<LLMState>,
+  running_state_sender: RunningStateSender,
 }
 
 impl LocalEmbedding {
-  pub fn new(sidecar_manager: Arc<SidecarManager>) -> Self {
+  pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
+    let running_state_sender = tokio::sync::broadcast::channel(10).0;
     let (state_notify, _) = tokio::sync::broadcast::channel(10);
     Self {
-      sidecar_manager,
+      plugin_manager,
       plugin_config: Default::default(),
       state: RwLock::new(LLMState::Loading),
       state_notify,
+      running_state_sender,
     }
   }
 
@@ -56,8 +59,11 @@ impl LocalEmbedding {
       exec_path: config.bin_path,
     };
     self.update_state(LLMState::Loading).await;
-    let plugin_id = self.sidecar_manager.create_plugin(info).await?;
-    let plugin = self.sidecar_manager.init_plugin(
+    let plugin_id = self
+      .plugin_manager
+      .create_plugin(info, self.running_state_sender.clone())
+      .await?;
+    let plugin = self.plugin_manager.init_plugin(
       plugin_id,
       json!({
           "absolute_model_path":config.model_path,
@@ -66,6 +72,10 @@ impl LocalEmbedding {
     info!("[Embedding Plugin] {} setup success", plugin);
     self.update_state(LLMState::Ready { plugin_id }).await;
     Ok(())
+  }
+
+  pub async fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
+    self.running_state_sender.subscribe()
   }
 
   pub async fn generate_embedding(&self, text: &str) -> Result<Vec<Vec<f64>>, SidecarError> {
@@ -79,7 +89,7 @@ impl LocalEmbedding {
 
   async fn get_embedding_plugin(&self) -> Result<Weak<Plugin>> {
     let plugin_id = self.state.read().await.plugin_id()?;
-    let plugin = self.sidecar_manager.get_plugin(plugin_id).await?;
+    let plugin = self.plugin_manager.get_plugin(plugin_id).await?;
     Ok(plugin)
   }
 
