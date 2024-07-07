@@ -1,4 +1,5 @@
 use crate::embedding_plugin::EmbeddingPluginOperation;
+use std::collections::HashMap;
 
 use crate::state::LLMState;
 use anyhow::anyhow;
@@ -6,8 +7,7 @@ use anyhow::Result;
 use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
 use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
-use appflowy_plugin::util::get_operating_system;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -53,7 +53,6 @@ impl LocalEmbedding {
       }
     }
 
-    let _system = get_operating_system();
     let info = PluginInfo {
       name: "embedding".to_string(),
       exec_path: config.bin_path,
@@ -63,15 +62,16 @@ impl LocalEmbedding {
       .plugin_manager
       .create_plugin(info, self.running_state_sender.clone())
       .await?;
-    let plugin = self
-      .plugin_manager
-      .init_plugin(
-        plugin_id,
-        json!({
-            "absolute_model_path":config.model_path,
-        }),
-      )
-      .await?;
+
+    let mut params = json!({
+        "absolute_model_path":config.model_path,
+    });
+
+    if let Some(storage_path) = config.storage_path {
+      params["storage_path"] = json!(storage_path);
+    }
+
+    let plugin = self.plugin_manager.init_plugin(plugin_id, params).await?;
     info!("[Embedding Plugin] {} setup success", plugin);
     self.update_state(LLMState::Ready { plugin_id }).await;
     Ok(())
@@ -86,8 +86,34 @@ impl LocalEmbedding {
     self.wait_plugin_ready().await?;
     let plugin = self.get_embedding_plugin().await?;
     let operation = EmbeddingPluginOperation::new(plugin);
-    let embeddings = operation.generate_embedding(text).await?;
+    let embeddings = operation.embed_documents(text).await?;
     Ok(embeddings)
+  }
+
+  pub async fn index(
+    &self,
+    text: &str,
+    metadata: HashMap<String, Value>,
+  ) -> Result<(), PluginError> {
+    trace!("[Embedding Plugin] generate embedding for text: {}", text);
+    self.wait_plugin_ready().await?;
+    let plugin = self.get_embedding_plugin().await?;
+    let operation = EmbeddingPluginOperation::new(plugin);
+    operation.index_document(text, metadata).await?;
+    Ok(())
+  }
+
+  pub async fn similarity_search(
+    &self,
+    query: &str,
+    filter: HashMap<String, Value>,
+  ) -> Result<Vec<String>, PluginError> {
+    trace!("[Embedding Plugin] similarity search for query: {}", query);
+    self.wait_plugin_ready().await?;
+    let plugin = self.get_embedding_plugin().await?;
+    let operation = EmbeddingPluginOperation::new(plugin);
+    let result = operation.similarity_search(query, filter).await?;
+    Ok(result)
   }
 
   async fn get_embedding_plugin(&self) -> Result<Weak<Plugin>> {
@@ -131,10 +157,15 @@ impl LocalEmbedding {
 pub struct EmbeddingPluginConfig {
   pub bin_path: PathBuf,
   pub model_path: PathBuf,
+  pub storage_path: Option<PathBuf>,
 }
 
 impl EmbeddingPluginConfig {
-  pub fn new<T: Into<PathBuf>>(bin_path: T, model_path: T) -> Result<Self> {
+  pub fn new<T: Into<PathBuf>>(
+    bin_path: T,
+    model_path: T,
+    storage_path: Option<PathBuf>,
+  ) -> Result<Self> {
     let bin_path = bin_path.into();
     let model_path = model_path.into();
     if !bin_path.exists() {
@@ -161,6 +192,7 @@ impl EmbeddingPluginConfig {
     Ok(Self {
       bin_path,
       model_path,
+      storage_path,
     })
   }
 }

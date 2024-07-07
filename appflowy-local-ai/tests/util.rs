@@ -16,7 +16,7 @@ use tracing_subscriber::EnvFilter;
 pub struct LocalAITest {
   config: LocalAIConfiguration,
   chat_manager: LocalChatLLMChat,
-  embedding_manager: LocalEmbedding,
+  pub embedding_manager: LocalEmbedding,
 }
 
 impl LocalAITest {
@@ -43,9 +43,11 @@ impl LocalAITest {
   }
 
   pub async fn init_embedding_plugin(&self) {
+    let temp_dir = tempfile::tempdir().unwrap().path().to_path_buf();
     let config = EmbeddingPluginConfig::new(
       self.config.embedding_bin_path.clone(),
       self.config.embedding_model_absolute_path(),
+      Some(temp_dir),
     )
     .unwrap();
     self
