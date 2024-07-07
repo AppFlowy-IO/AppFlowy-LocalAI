@@ -15,7 +15,7 @@ use tracing_subscriber::EnvFilter;
 
 pub struct LocalAITest {
   config: LocalAIConfiguration,
-  chat_manager: LocalChatLLMChat,
+  pub chat_manager: LocalChatLLMChat,
   pub embedding_manager: LocalEmbedding,
 }
 
@@ -33,12 +33,19 @@ impl LocalAITest {
   }
 
   pub async fn init_chat_plugin(&self) {
-    let config = ChatPluginConfig::new(
+    let mut config = ChatPluginConfig::new(
       self.config.chat_bin_path.clone(),
       self.config.chat_model_absolute_path(),
     )
     .unwrap()
     .with_device("cpu");
+
+    if let Some(related_question_model) = self.config.related_question_model_absolute_path() {
+      config = config.with_related_model_path(related_question_model);
+    }
+
+    config = config.with_embedding_model_path(self.config.embedding_model_absolute_path());
+
     self.chat_manager.init_chat_plugin(config).await.unwrap();
   }
 
@@ -114,7 +121,8 @@ fn flatten_vec(vec: Vec<Vec<f64>>) -> Vec<f64> {
 pub struct LocalAIConfiguration {
   model_dir: String,
   chat_bin_path: PathBuf,
-  chat_model_name: String,
+  chat_model: String,
+  related_question_model: Option<String>,
   embedding_bin_path: PathBuf,
   embedding_model_name: String,
 }
@@ -127,15 +135,16 @@ impl LocalAIConfiguration {
     // load from .env
     let model_dir = dotenv::var("LOCAL_AI_MODEL_DIR")?;
     let chat_bin_path = PathBuf::from(dotenv::var("CHAT_BIN_PATH")?);
-    let chat_model_name = dotenv::var("LOCAL_AI_CHAT_MODEL_NAME")?;
-
+    let chat_model = dotenv::var("LOCAL_AI_CHAT_MODEL_NAME")?;
+    let related_question_model = dotenv::var("LOCAL_AI_RELATED_QUESTION_NAME").ok();
     let embedding_bin_path = PathBuf::from(dotenv::var("EMBEDDING_BIN_PATH")?);
     let embedding_model_name = dotenv::var("LOCAL_AI_EMBEDDING_MODEL_NAME")?;
 
     Ok(Self {
       model_dir,
       chat_bin_path,
-      chat_model_name,
+      chat_model,
+      related_question_model,
       embedding_bin_path,
       embedding_model_name,
     })
@@ -143,7 +152,14 @@ impl LocalAIConfiguration {
 
   pub fn chat_model_absolute_path(&self) -> PathBuf {
     let path = PathBuf::from(&self.model_dir);
-    path.join(&self.chat_model_name)
+    path.join(&self.chat_model)
+  }
+
+  pub fn related_question_model_absolute_path(&self) -> Option<PathBuf> {
+    self.related_question_model.as_ref().map(|model| {
+      let path = PathBuf::from(&self.model_dir);
+      path.join(model)
+    })
   }
 
   pub fn embedding_model_absolute_path(&self) -> PathBuf {

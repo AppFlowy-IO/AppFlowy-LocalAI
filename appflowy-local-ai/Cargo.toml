@@ -25,3 +25,4 @@ uuid = { version = "1.9.1", features = ["v4"] }
 tracing-subscriber = { version = "0.3.17", features = ["registry", "env-filter", "ansi", "json"] }
 simsimd = "4.4.0"
 tempfile = "3.10.1"
+appflowy-plugin = { workspace = true, features = ["verbose"] }

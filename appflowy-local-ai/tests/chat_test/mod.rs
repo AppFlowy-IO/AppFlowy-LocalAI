@@ -1,4 +1,5 @@
 use crate::util::LocalAITest;
+use std::time::Duration;
 use tokio_stream::StreamExt;
 
 #[tokio::test]
@@ -34,7 +35,15 @@ async fn ci_chat_stream_test() {
   eprintln!("response: {:?}", answer);
 
   let expected = r#"banana is a fruit that belongs to the genus _______, which also includes other fruits such as apple and pear. It has several varieties with different shapes, colors, and flavors depending on where it grows. Bananas are typically green or yellow in color and have smooth skin that peels off easily when ripe. They are sweet and juicy, often eaten raw or roasted, and can also be used for cooking and baking. In some cultures, banana is considered a symbol of good luck, fertility, and prosperity. Bananas originated in Southeast Asia, where they were cultivated by early humans thousands of years ago. They are now grown around the world as a major crop, with significant production in many countries including the United States, Brazil, India, and China#"#;
-
   let score = test.calculate_similarity(&answer, expected).await;
   assert!(score > 0.7, "score: {}", score);
+
+  // let questions = test
+  //   .chat_manager
+  //   .get_related_question(&chat_id)
+  //   .await
+  //   .unwrap();
+  // println!("related questions: {:?}", questions);
+
+  tokio::time::sleep(Duration::from_secs(5)).await;
 }

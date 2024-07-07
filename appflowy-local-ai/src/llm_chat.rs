@@ -117,6 +117,14 @@ impl LocalChatLLMChat {
     Ok(stream)
   }
 
+  pub async fn get_related_question(&self, chat_id: &str) -> Result<Vec<String>, PluginError> {
+    self.wait_until_plugin_ready().await?;
+    let plugin = self.get_chat_plugin().await?;
+    let operation = ChatPluginOperation::new(plugin);
+    let values = operation.get_related_questions(chat_id).await?;
+    Ok(values)
+  }
+
   /// Generates a complete answer for a given message.
   ///
   /// # Arguments
@@ -191,7 +199,6 @@ impl LocalChatLLMChat {
         let device = config.device.as_str();
         serde_json::json!({
           "absolute_chat_model_path": model_path,
-          // Currently, using GPU for windows will somehow cause windows to crash
           "device": device,
         })
       },
@@ -215,7 +222,16 @@ impl LocalChatLLMChat {
     };
 
     params["verbose"] = serde_json::json!(config.verbose);
-    params["rag_enabled"] = serde_json::json!(config.rag_enabled);
+    if let Some(related_model_path) = config.related_model_path.clone() {
+      params["absolute_related_model_path"] = serde_json::json!(related_model_path);
+    }
+
+    if let Some(embedding_model_path) = config.embedding_model_path.clone() {
+      params["vectorstore_config"] = serde_json::json!({
+        "absolute_model_path": embedding_model_path,
+        "persist_directory": "./",
+      });
+    }
 
     info!(
       "[Chat Plugin] setup chat plugin: {:?}, params: {:?}",
@@ -285,6 +301,8 @@ impl LocalChatLLMChat {
 pub struct ChatPluginConfig {
   chat_bin_path: PathBuf,
   chat_model_path: PathBuf,
+  related_model_path: Option<PathBuf>,
+  embedding_model_path: Option<PathBuf>,
   device: String,
   verbose: bool,
   rag_enabled: bool,
@@ -318,6 +336,8 @@ impl ChatPluginConfig {
     Ok(Self {
       chat_bin_path,
       chat_model_path,
+      related_model_path: None,
+      embedding_model_path: None,
       device: "cpu".to_string(),
       verbose: false,
       rag_enabled: false,
@@ -335,6 +355,16 @@ impl ChatPluginConfig {
   }
   pub fn with_rag_enabled(mut self, rag_enabled: bool) -> Self {
     self.rag_enabled = rag_enabled;
+    self
+  }
+
+  pub fn with_related_model_path<T: Into<PathBuf>>(mut self, related_model_path: T) -> Self {
+    self.related_model_path = Some(related_model_path.into());
+    self
+  }
+
+  pub fn with_embedding_model_path<T: Into<PathBuf>>(mut self, embedding_model_path: T) -> Self {
+    self.embedding_model_path = Some(embedding_model_path.into());
     self
   }
 }

@@ -75,7 +75,7 @@ impl ChatPluginOperation {
     plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
 
-  pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<JsonValue>, PluginError> {
+  pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<String>, PluginError> {
     self
       .send_request::<ChatRelatedQuestionsResponseParser>(
         "related_question",
@@ -112,13 +112,18 @@ impl ResponseParser for ChatStreamResponseParser {
 
 pub struct ChatRelatedQuestionsResponseParser;
 impl ResponseParser for ChatRelatedQuestionsResponseParser {
-  type ValueType = Vec<JsonValue>;
+  type ValueType = Vec<String>;
 
   fn parse_json(json: JsonValue) -> Result<Self::ValueType, RemoteError> {
     json
       .get("data")
       .and_then(|data| data.as_array())
-      .cloned()
+      .map(|array| {
+        array
+          .iter()
+          .filter_map(|item| item.as_str().map(|s| s.to_string()))
+          .collect()
+      })
       .ok_or(RemoteError::ParseResponse(json))
   }
 }
