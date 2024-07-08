@@ -375,11 +375,11 @@ impl ChatPluginConfig {
     self.verbose = verbose;
     self
   }
-  pub fn with_rag_enabled(
-    mut self,
+  pub fn set_rag_enabled(
+    &mut self,
     embedding_model_path: &PathBuf,
     persist_directory: &PathBuf,
-  ) -> Result<Self> {
+  ) -> Result<()> {
     if !embedding_model_path.exists() {
       return Err(anyhow!(
         "embedding model path does not exist: {:?}",
@@ -399,7 +399,7 @@ impl ChatPluginConfig {
 
     self.embedding_model_path = Some(embedding_model_path.clone());
     self.persist_directory = Some(persist_directory.clone());
-    Ok(self)
+    Ok(())
   }
 
   pub fn with_related_model_path<T: Into<PathBuf>>(mut self, related_model_path: T) -> Self {
