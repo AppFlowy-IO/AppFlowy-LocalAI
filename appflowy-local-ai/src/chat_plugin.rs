@@ -83,6 +83,16 @@ impl ChatPluginOperation {
       )
       .await
   }
+
+  pub async fn index_file(&self, chat_id: &str, file_path: &str) -> Result<(), PluginError> {
+    let params = json!({ "file_path": file_path, "metadatas": [{"chat_id": chat_id}] });
+    self
+      .send_request::<DefaultResponseParser>(
+        "index_file",
+        json!({ "chat_id": chat_id, "params": params }),
+      )
+      .await
+  }
 }
 
 pub struct ChatResponseParser;

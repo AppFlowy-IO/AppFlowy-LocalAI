@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
+use tokio::io;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
@@ -104,7 +105,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<ReceiverStream<anyhow::Result<Bytes, SidecarError>>>` containing a stream of responses.
-  pub async fn ask_question(
+  pub async fn stream_question(
     &self,
     chat_id: &str,
     message: &str,
@@ -125,6 +126,27 @@ impl LocalChatLLMChat {
     Ok(values)
   }
 
+  pub async fn index_file(&self, chat_id: &str, file_path: PathBuf) -> Result<(), PluginError> {
+    if !file_path.exists() {
+      return Err(PluginError::Io(io::Error::new(
+        io::ErrorKind::NotFound,
+        "file not found",
+      )));
+    }
+
+    let file_path = file_path.to_str().ok_or(PluginError::Io(io::Error::new(
+      io::ErrorKind::NotFound,
+      "file path invalid",
+    )))?;
+
+    self.wait_until_plugin_ready().await?;
+    let plugin = self.get_chat_plugin().await?;
+    let operation = ChatPluginOperation::new(plugin);
+    trace!("[Chat Plugin] indexing file: {}", file_path);
+    operation.index_file(chat_id, file_path).await?;
+    Ok(())
+  }
+
   /// Generates a complete answer for a given message.
   ///
   /// # Arguments
@@ -135,7 +157,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<String>` containing the generated answer.
-  pub async fn generate_answer(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
+  pub async fn ask_question(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
@@ -226,10 +248,13 @@ impl LocalChatLLMChat {
       params["absolute_related_model_path"] = serde_json::json!(related_model_path);
     }
 
-    if let Some(embedding_model_path) = config.embedding_model_path.clone() {
+    if let (Some(embedding_model_path), Some(persist_directory)) = (
+      config.embedding_model_path.clone(),
+      config.persist_directory.clone(),
+    ) {
       params["vectorstore_config"] = serde_json::json!({
         "absolute_model_path": embedding_model_path,
-        "persist_directory": "./",
+        "persist_directory": persist_directory,
       });
     }
 
@@ -303,9 +328,9 @@ pub struct ChatPluginConfig {
   chat_model_path: PathBuf,
   related_model_path: Option<PathBuf>,
   embedding_model_path: Option<PathBuf>,
+  persist_directory: Option<PathBuf>,
   device: String,
   verbose: bool,
-  rag_enabled: bool,
 }
 
 impl ChatPluginConfig {
@@ -338,9 +363,9 @@ impl ChatPluginConfig {
       chat_model_path,
       related_model_path: None,
       embedding_model_path: None,
+      persist_directory: None,
       device: "cpu".to_string(),
       verbose: false,
-      rag_enabled: false,
     })
   }
 
@@ -353,18 +378,35 @@ impl ChatPluginConfig {
     self.verbose = verbose;
     self
   }
-  pub fn with_rag_enabled(mut self, rag_enabled: bool) -> Self {
-    self.rag_enabled = rag_enabled;
-    self
+  pub fn with_rag_enabled(
+    mut self,
+    embedding_model_path: PathBuf,
+    persist_directory: PathBuf,
+  ) -> Result<Self> {
+    if !embedding_model_path.exists() {
+      return Err(anyhow!(
+        "embedding model path does not exist: {:?}",
+        embedding_model_path
+      ));
+    }
+    if !embedding_model_path.is_file() {
+      return Err(anyhow!(
+        "embedding model is not a file: {:?}",
+        embedding_model_path
+      ));
+    }
+
+    if !persist_directory.exists() {
+      std::fs::create_dir_all(&persist_directory)?;
+    }
+
+    self.embedding_model_path = Some(embedding_model_path);
+    self.persist_directory = Some(persist_directory);
+    Ok(self)
   }
 
   pub fn with_related_model_path<T: Into<PathBuf>>(mut self, related_model_path: T) -> Self {
     self.related_model_path = Some(related_model_path.into());
-    self
-  }
-
-  pub fn with_embedding_model_path<T: Into<PathBuf>>(mut self, embedding_model_path: T) -> Self {
-    self.embedding_model_path = Some(embedding_model_path.into());
     self
   }
 }

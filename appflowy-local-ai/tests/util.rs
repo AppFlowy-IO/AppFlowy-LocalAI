@@ -6,7 +6,7 @@ use appflowy_plugin::manager::PluginManager;
 use bytes::Bytes;
 use simsimd::SpatialSimilarity;
 use std::f64;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Once};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing_subscriber::fmt::Subscriber;
@@ -44,7 +44,10 @@ impl LocalAITest {
       config = config.with_related_model_path(related_question_model);
     }
 
-    config = config.with_embedding_model_path(self.config.embedding_model_absolute_path());
+    let persist_dir = tempfile::tempdir().unwrap().path().to_path_buf();
+    config = config
+      .with_rag_enabled(self.config.embedding_model_absolute_path(), persist_dir)
+      .unwrap();
 
     self.chat_manager.init_chat_plugin(config).await.unwrap();
   }
@@ -67,7 +70,7 @@ impl LocalAITest {
   pub async fn send_chat_message(&self, chat_id: &str, message: &str) -> String {
     self
       .chat_manager
-      .generate_answer(chat_id, message)
+      .ask_question(chat_id, message)
       .await
       .unwrap()
   }
@@ -79,7 +82,7 @@ impl LocalAITest {
   ) -> ReceiverStream<Result<Bytes, PluginError>> {
     self
       .chat_manager
-      .ask_question(chat_id, message)
+      .stream_question(chat_id, message)
       .await
       .unwrap()
   }
@@ -92,15 +95,15 @@ impl LocalAITest {
       .unwrap()
   }
 
-  pub async fn calculate_similarity(&self, message1: &str, message2: &str) -> f64 {
+  pub async fn calculate_similarity(&self, input: &str, expected: &str) -> f64 {
     let left = self
       .embedding_manager
-      .generate_embedding(message1)
+      .generate_embedding(input)
       .await
       .unwrap();
     let right = self
       .embedding_manager
-      .generate_embedding(message2)
+      .generate_embedding(expected)
       .await
       .unwrap();
 
@@ -184,4 +187,10 @@ pub fn setup_log() {
       .finish();
     subscriber.try_init().unwrap();
   });
+}
+
+pub fn get_asset_path(name: &str) -> PathBuf {
+  let file = format!("tests/asset/{name}");
+  let absolute_path = std::env::current_dir().unwrap().join(Path::new(&file));
+  absolute_path
 }
