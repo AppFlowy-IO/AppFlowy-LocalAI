@@ -67,8 +67,8 @@ impl LocalEmbedding {
         "absolute_model_path":config.model_path,
     });
 
-    if let Some(storage_path) = config.storage_path {
-      params["storage_path"] = json!(storage_path);
+    if let Some(persist_directory) = config.persist_directory {
+      params["persist_directory"] = json!(persist_directory);
     }
 
     let plugin = self.plugin_manager.init_plugin(plugin_id, params).await?;
@@ -157,7 +157,7 @@ impl LocalEmbedding {
 pub struct EmbeddingPluginConfig {
   pub bin_path: PathBuf,
   pub model_path: PathBuf,
-  pub storage_path: Option<PathBuf>,
+  pub persist_directory: Option<PathBuf>,
 }
 
 impl EmbeddingPluginConfig {
@@ -192,7 +192,7 @@ impl EmbeddingPluginConfig {
     Ok(Self {
       bin_path,
       model_path,
-      storage_path,
+      persist_directory: storage_path,
     })
   }
 }

@@ -38,7 +38,7 @@ impl EmbeddingPluginOperation {
       .ok_or(PluginError::Internal(anyhow!("Plugin is dropped")))?;
     let metadata = json!(metadata);
     let params =
-      json!({"method": "aindex_document", "params": {"input": message, "metadata": metadata }});
+      json!({"method": "index_document", "params": {"input": message, "metadata": metadata }});
     plugin
       .async_request::<DefaultResponseParser>("handle", &params)
       .await
