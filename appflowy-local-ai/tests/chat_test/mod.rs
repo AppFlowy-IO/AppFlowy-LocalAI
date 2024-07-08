@@ -39,7 +39,7 @@ async fn ci_chat_stream_test() {
 }
 
 #[tokio::test]
-async fn ci_chat_with_pdf() {
+async fn chat_with_pdf() {
   let test = LocalAITest::new().unwrap();
   test.init_chat_plugin().await;
   test.init_embedding_plugin().await;
