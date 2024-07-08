@@ -20,6 +20,7 @@ use tracing::{error, info, instrument, trace};
 pub struct LocalLLMSetting {
   pub chat_bin_path: String,
   pub chat_model_path: String,
+  pub embedding_model_path: String,
   pub enabled: bool,
 }
 
@@ -27,10 +28,6 @@ impl LocalLLMSetting {
   pub fn validate(&self) -> Result<()> {
     ChatPluginConfig::new(&self.chat_bin_path, &self.chat_model_path)?;
     Ok(())
-  }
-  pub fn chat_config(&self) -> Result<ChatPluginConfig> {
-    let config = ChatPluginConfig::new(&self.chat_bin_path, &self.chat_model_path)?;
-    Ok(config)
   }
 }
 
@@ -380,8 +377,8 @@ impl ChatPluginConfig {
   }
   pub fn with_rag_enabled(
     mut self,
-    embedding_model_path: PathBuf,
-    persist_directory: PathBuf,
+    embedding_model_path: &PathBuf,
+    persist_directory: &PathBuf,
   ) -> Result<Self> {
     if !embedding_model_path.exists() {
       return Err(anyhow!(
@@ -397,11 +394,11 @@ impl ChatPluginConfig {
     }
 
     if !persist_directory.exists() {
-      std::fs::create_dir_all(&persist_directory)?;
+      std::fs::create_dir_all(persist_directory)?;
     }
 
-    self.embedding_model_path = Some(embedding_model_path);
-    self.persist_directory = Some(persist_directory);
+    self.embedding_model_path = Some(embedding_model_path.clone());
+    self.persist_directory = Some(persist_directory.clone());
     Ok(self)
   }
 

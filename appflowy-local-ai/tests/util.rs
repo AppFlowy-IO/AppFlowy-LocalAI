@@ -46,7 +46,7 @@ impl LocalAITest {
 
     let persist_dir = tempfile::tempdir().unwrap().path().to_path_buf();
     config = config
-      .with_rag_enabled(self.config.embedding_model_absolute_path(), persist_dir)
+      .with_rag_enabled(&self.config.embedding_model_absolute_path(), &persist_dir)
       .unwrap();
 
     self.chat_manager.init_chat_plugin(config).await.unwrap();
