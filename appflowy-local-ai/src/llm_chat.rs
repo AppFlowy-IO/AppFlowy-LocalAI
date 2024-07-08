@@ -67,7 +67,7 @@ impl LocalChatLLMChat {
 
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
-    operation.create_chat(chat_id).await?;
+    operation.create_chat(chat_id, true).await?;
     Ok(())
   }
 
@@ -111,7 +111,7 @@ impl LocalChatLLMChat {
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
-    let stream = operation.stream_message(chat_id, message).await?;
+    let stream = operation.stream_message(chat_id, message, true).await?;
     Ok(stream)
   }
 
@@ -158,7 +158,7 @@ impl LocalChatLLMChat {
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
-    let answer = operation.send_message(chat_id, message).await?;
+    let answer = operation.send_message(chat_id, message, true).await?;
     Ok(answer)
   }
 

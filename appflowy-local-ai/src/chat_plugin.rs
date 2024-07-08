@@ -39,9 +39,12 @@ impl ChatPluginOperation {
     plugin.async_request::<T>("handle", &request).await
   }
 
-  pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
+  pub async fn create_chat(&self, chat_id: &str, rag_enabled: bool) -> Result<(), PluginError> {
     self
-      .send_request::<DefaultResponseParser>("create_chat", json!({ "chat_id": chat_id }))
+      .send_request::<DefaultResponseParser>(
+        "create_chat",
+        json!({ "chat_id": chat_id, "rag_enabled": rag_enabled }),
+      )
       .await
   }
 
@@ -51,11 +54,16 @@ impl ChatPluginOperation {
       .await
   }
 
-  pub async fn send_message(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
+  pub async fn send_message(
+    &self,
+    chat_id: &str,
+    message: &str,
+    rag_enabled: bool,
+  ) -> Result<String, PluginError> {
     self
       .send_request::<ChatResponseParser>(
         "answer",
-        json!({ "chat_id": chat_id, "params": { "content": message } }),
+        json!({ "chat_id": chat_id, "params": { "content": message, "rag_enabled": rag_enabled } }),
       )
       .await
   }
@@ -65,12 +73,13 @@ impl ChatPluginOperation {
     &self,
     chat_id: &str,
     message: &str,
+    rag_enabled: bool,
   ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
     let plugin = self.get_plugin()?;
     let params = json!({
         "chat_id": chat_id,
         "method": "stream_answer",
-        "params": { "content": message }
+        "params": { "content": message, "rag_enabled": rag_enabled }
     });
     plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
