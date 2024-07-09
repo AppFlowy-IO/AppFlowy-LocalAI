@@ -1,0 +1,184 @@
+name: Build, Sign, and Run Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run_test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [
+          macos-latest,
+          #                    windows-latest,
+          #                    ubuntu-latest
+        ]
+        build_type: [ release ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.LOCAL_AI_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.LOCAL_AI_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.LOCAL_AI_AWS_REGION }}
+
+      - name: Download artifact from S3 (Unix)
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: |
+          aws s3 cp s3://appflowy-local-ai/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          unzip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip -d AppFlowyLLM
+          cd AppFlowyLLM
+          pwd
+          ls
+        shell: bash
+
+      - name: Download artifact from S3 (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          aws s3 cp s3://appflowy-local-ai/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          Expand-Archive -Path AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip -DestinationPath AppFlowyLLM
+          cd AppFlowyLLM
+          dir
+        shell: powershell
+
+      - name: Download models (Unix)
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: |
+          curl -sSL -o tinyllama.gguf "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf?download=true"
+          curl -sSL -o all-MiniLM-L12-v2.F16.gguf "https://huggingface.co/leliuga/all-MiniLM-L12-v2-GGUF/resolve/main/all-MiniLM-L12-v2.F16.gguf?download=true"
+          ls
+
+      - name: Download models (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          Invoke-WebRequest -Uri "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf?download=true" -OutFile tinyllama.gguf
+          Invoke-WebRequest -Uri "https://huggingface.co/leliuga/all-MiniLM-L12-v2-GGUF/resolve/main/all-MiniLM-L12-v2.F16.gguf?download=true" -OutFile all-MiniLM-L12-v2.F16.gguf
+          dir
+
+      - name: Prepare env (macOS)
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          ls
+          ABS_PATH=$(pwd)
+          chat_bin_path=$ABS_PATH/AppFlowyLLM/chat_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyLLM/embedding_plugin
+          
+          cp dev.env .env
+          sed -i '' 's|RUST_LOG=.*|RUST_LOG=trace|' .env
+          
+          # binary
+          sed -i '' "s|CHAT_BIN_PATH=.*|CHAT_BIN_PATH=$chat_bin_path|" .env
+          sed -i '' "s|EMBEDDING_BIN_PATH=.*|EMBEDDING_BIN_PATH=$embedding_bin_path|" .env
+          # model
+          sed -i '' "s|LOCAL_AI_MODEL_DIR=.*|LOCAL_AI_MODEL_DIR=$ABS_PATH|" .env
+          sed -i '' 's|LOCAL_AI_CHAT_MODEL_NAME=.*|LOCAL_AI_CHAT_MODEL_NAME=tinyllama.gguf|' .env
+          sed -i '' 's|LOCAL_AI_EMBEDDING_MODEL_NAME=.*|LOCAL_AI_EMBEDDING_MODEL_NAME=all-MiniLM-L12-v2.F16.gguf|' .env
+          cat .env
+        shell: bash
+
+      - name: Prepare env (Linux)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          ABS_PATH=$(pwd)
+          chat_bin_path=$ABS_PATH/AppFlowyLLM/chat_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyLLM/embedding_plugin
+          
+          cp dev.env .env
+          sed -i 's|RUST_LOG=.*|RUST_LOG=trace|' .env
+          
+          # binary
+          sed -i "s|CHAT_BIN_PATH=.*|CHAT_BIN_PATH=$chat_bin_path|" .env
+          sed -i "s|EMBEDDING_BIN_PATH=.*|EMBEDDING_BIN_PATH=$embedding_bin_path|" .env
+          # model
+          sed -i "s|LOCAL_AI_MODEL_DIR=.*|LOCAL_AI_MODEL_DIR=$ABS_PATH|" .env
+          sed -i 's|LOCAL_AI_CHAT_MODEL_NAME=.*|LOCAL_AI_CHAT_MODEL_NAME=tinyllama.gguf|' .env
+          sed -i 's|LOCAL_AI_EMBEDDING_MODEL_NAME=.*|LOCAL_AI_EMBEDDING_MODEL_NAME=all-MiniLM-L12-v2.F16.gguf|' .env
+          cat .env
+        shell: bash
+
+      - name: Prepare env (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          try {
+            $ABS_PATH = $PWD.Path
+            $chat_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'chat_plugin.exe'
+            $embedding_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'embedding_plugin.exe'
+
+            Copy-Item -Path 'dev.env' -Destination '.env' -Force
+
+            $envContent = Get-Content '.env'
+            $envContent = $envContent -replace 'RUST_LOG=.*', 'RUST_LOG=trace'
+            $envContent = $envContent -replace 'CHAT_BIN_PATH=.*', "CHAT_BIN_PATH=$chat_bin_path"
+            $envContent = $envContent -replace 'EMBEDDING_BIN_PATH=.*', "EMBEDDING_BIN_PATH=$embedding_bin_path"
+            $envContent = $envContent -replace 'LOCAL_AI_MODEL_DIR=.*', "LOCAL_AI_MODEL_DIR=$ABS_PATH"
+            $envContent = $envContent -replace 'LOCAL_AI_CHAT_MODEL_NAME=.*', 'LOCAL_AI_CHAT_MODEL_NAME=tinyllama.gguf'
+            $envContent = $envContent -replace 'LOCAL_AI_EMBEDDING_MODEL_NAME=.*', 'LOCAL_AI_EMBEDDING_MODEL_NAME=all-MiniLM-L12-v2.F16.gguf'
+
+            $envContent | Set-Content '.env'
+            Get-Content '.env'
+
+            Write-Host "Environment setup completed successfully."
+          }
+          catch {
+            Write-Host "An error occurred during environment setup: $_"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.77.2
+          override: true
+          profile: minimal
+
+      - name: Run tests
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: cargo test ci_
+        shell: bash
+
+      - name: Load .env file
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          Get-Content .env | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') {
+              $name = $matches[1]
+              $value = $matches[2]
+              Write-Output "$name=$value" >> $env:GITHUB_ENV
+            }
+          }
+        shell: powershell
+
+      - name: Run tests (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: cargo test ci_
+        shell: powershell
+
+      - name: Cleanup downloaded artifacts (Unix)
+        if: ${{ matrix.os != 'windows-latest' }}
+        run: |
+          rm -rf AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          rm -rf AppFlowyLLM
+          rm -rf tinyllama.gguf
+          rm -rf all-MiniLM-L12-v
+
+      - name: Cleanup downloaded artifacts (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          Remove-Item -Recurse -Force AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          Remove-Item -Recurse -Force AppFlowyLLM
+          Remove-Item -Recurse -Force tinyllama.gguf
+          Remove-Item -Recurse -Force all-MiniLM-L12-v2.F16.gguf
+          dir
+        shell: powershell
