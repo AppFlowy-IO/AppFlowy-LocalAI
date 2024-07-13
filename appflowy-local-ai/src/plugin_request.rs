@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use reqwest::Client;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::fs::File;
@@ -13,7 +13,7 @@ type ProgressCallback = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
 pub async fn download_plugin(
   url: &str,
-  plugin_dir: &PathBuf,
+  plugin_dir: &Path,
   file_name: &str,
   cancel_token: Option<CancellationToken>,
   progress_callback: Option<ProgressCallback>,
