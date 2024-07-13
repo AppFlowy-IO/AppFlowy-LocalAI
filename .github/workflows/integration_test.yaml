@@ -35,7 +35,7 @@ jobs:
       - name: Download artifact from S3 (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
         run: |
-          aws s3 cp s3://appflowy-local-ai/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          aws s3 cp s3://appflowy-local-ai-test/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
           unzip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip -d AppFlowyLLM
           cd AppFlowyLLM
           pwd
@@ -45,7 +45,7 @@ jobs:
       - name: Download artifact from S3 (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
         run: |
-          aws s3 cp s3://appflowy-local-ai/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          aws s3 cp s3://appflowy-local-ai-test/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
           Expand-Archive -Path AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip -DestinationPath AppFlowyLLM
           cd AppFlowyLLM
           dir

@@ -41,16 +41,11 @@ impl LocalEmbedding {
     config: EmbeddingPluginConfig,
   ) -> Result<(), PluginError> {
     if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
-      if existing_config == &config {
-        trace!("[Embedding Plugin] already initialized with the same config");
-        return Ok(());
-      } else {
-        trace!(
-          "[Embedding Plugin] existing config: {:?}, new config:{:?}",
-          existing_config,
-          config
-        );
-      }
+      trace!(
+        "[Embedding Plugin] existing config: {:?}, new config:{:?}",
+        existing_config,
+        config
+      );
     }
 
     let info = PluginInfo {

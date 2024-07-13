@@ -178,16 +178,11 @@ impl LocalChatLLMChat {
   pub async fn init_chat_plugin(&self, config: ChatPluginConfig) -> Result<()> {
     if self.state.read().await.is_ready() {
       if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
-        if existing_config == &config {
-          trace!("[Chat Plugin] already initialized with the same config");
-          return Ok(());
-        } else {
-          trace!(
-            "[Chat Plugin] existing config: {:?}, new config:{:?}",
-            existing_config,
-            config
-          );
-        }
+        trace!(
+          "[Chat Plugin] existing config: {:?}, new config:{:?}",
+          existing_config,
+          config
+        );
       }
     }
 
