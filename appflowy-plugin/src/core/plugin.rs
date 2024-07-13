@@ -9,8 +9,9 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufReader;
-use std::path::PathBuf;
-use std::process::{Child, Stdio};
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
@@ -177,11 +178,19 @@ pub(crate) async fn start_plugin_process(
   running_state: RunningStateSender,
 ) -> Result<(), anyhow::Error> {
   trace!("start plugin process: {:?}, {:?}", id, plugin_info);
+  #[cfg(unix)]
+  {
+    trace!("ensure executable: {:?}", plugin_info.exec_path);
+    ensure_executable(&plugin_info.exec_path).await?;
+  }
+
   let (tx, rx) = tokio::sync::oneshot::channel();
   let spawn_result = thread::Builder::new()
     .name(format!("<{}> core host thread", &plugin_info.name))
     .spawn(move || {
       info!("Load {} plugin", &plugin_info.name);
+      handle_macos_security_check(&plugin_info);
+
       let child = std::process::Command::new(&plugin_info.exec_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -220,6 +229,7 @@ pub(crate) async fn start_plugin_process(
         },
         Err(err) => {
           let _ = tx.send(());
+          error!("failed to start plugin process: {:?}", err);
           state.plugin_connect(Err(err))
         },
       }
@@ -231,4 +241,61 @@ pub(crate) async fn start_plugin_process(
   }
   rx.await?;
   Ok(())
+}
+
+#[cfg(unix)]
+async fn ensure_executable(exec_path: &Path) -> Result<(), anyhow::Error> {
+  let metadata = tokio::fs::metadata(exec_path).await?;
+  let mut permissions = metadata.permissions();
+  permissions.set_mode(permissions.mode() | 0o755);
+  tokio::fs::set_permissions(exec_path, permissions).await?;
+  Ok(())
+}
+
+pub fn handle_macos_security_check(plugin_info: &PluginInfo) {
+  if cfg!(target_os = "macos") {
+    trace!("macos security check: {:?}", plugin_info.exec_path);
+    let mut open_manually = false;
+    match xattr::list(&plugin_info.exec_path) {
+      Ok(list) => {
+        let mut has_quarantine = false;
+        let mut has_lastuseddate = false;
+
+        // https://eclecticlight.co/2023/03/16/what-is-macos-ventura-doing-tracking-provenance/
+        // The com.apple.quarantine attribute is used by macOS to mark files that have been downloaded from
+        // the internet or received via other potentially unsafe methods. When this attribute is set, macOS
+        // employs additional security checks before allowing the file to be opened or executed
+        // The presence of this attribute can cause the system to display a permission error, such as:
+        // code: 1, kind: PermissionDenied, message: "Operation not permitted"
+        for attr in list {
+          if attr == "com.apple.quarantine" {
+            has_quarantine = true;
+          }
+          if attr == "com.apple.lastuseddate#PS" {
+            has_lastuseddate = true;
+          }
+          if cfg!(debug_assertions) {
+            trace!("{:?}: xattr: {:?}", plugin_info.exec_path, attr);
+          }
+        }
+
+        if has_quarantine && !has_lastuseddate {
+          open_manually = true;
+        }
+      },
+      Err(err) => {
+        error!("Failed to list xattr: {:?}", err);
+        open_manually = true;
+      },
+    }
+
+    if open_manually {
+      trace!("Open plugin file manually: {:?}", plugin_info.exec_path);
+      // Using 'open' to trigger the macOS security check. After the user allows opening the binary,
+      // any subsequent 'open' command will not trigger the security check and the binary will run with permission.
+      if let Err(err) = Command::new("open").arg(&plugin_info.exec_path).output() {
+        error!("Failed to open plugin file: {:?}", err);
+      }
+    }
+  }
 }

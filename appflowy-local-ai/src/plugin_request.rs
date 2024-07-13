@@ -63,32 +63,3 @@ pub async fn download_plugin(
   trace!("Plugin downloaded to {:?}", final_path);
   Ok(final_path)
 }
-
-#[cfg(test)]
-mod test {
-  use super::*;
-  use std::env::temp_dir;
-  use zip_extensions::zip_extract;
-
-  #[tokio::test]
-  async fn download_plugin_test() {
-    let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyLLM_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=OUMmaMPSSbzBJoJu6KLSG0woTf4%3D&Expires=1720877298";
-    if url.is_empty() {
-      return;
-    }
-
-    let temp_dir = temp_dir().join("download_plugin");
-    if !temp_dir.exists() {
-      std::fs::create_dir(&temp_dir).unwrap();
-    }
-
-    let path = download_plugin(url, &temp_dir, "AppFlowyLLM.zip", None, None)
-      .await
-      .unwrap();
-    println!("Downloaded plugin to {:?}", path);
-    zip_extract(&path, &temp_dir).unwrap();
-
-    // remove all files in temp_dir
-    // std::fs::remove_dir_all(&temp_dir).unwrap();
-  }
-}

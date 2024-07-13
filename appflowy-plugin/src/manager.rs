@@ -142,7 +142,7 @@ impl PluginState {
         self.plugins.push(Arc::new(plugin));
       },
       Err(err) => {
-        warn!("plugin failed to connect: {:?}", err);
+        error!("plugin failed to connect: {:?}", err);
       },
     }
   }

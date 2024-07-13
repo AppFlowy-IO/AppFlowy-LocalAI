@@ -316,13 +316,13 @@ impl LocalChatLLMChat {
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub struct ChatPluginConfig {
-  chat_bin_path: PathBuf,
-  chat_model_path: PathBuf,
-  related_model_path: Option<PathBuf>,
-  embedding_model_path: Option<PathBuf>,
-  persist_directory: Option<PathBuf>,
-  device: String,
-  verbose: bool,
+  pub chat_bin_path: PathBuf,
+  pub chat_model_path: PathBuf,
+  pub related_model_path: Option<PathBuf>,
+  pub embedding_model_path: Option<PathBuf>,
+  pub persist_directory: Option<PathBuf>,
+  pub device: String,
+  pub verbose: bool,
 }
 
 impl ChatPluginConfig {

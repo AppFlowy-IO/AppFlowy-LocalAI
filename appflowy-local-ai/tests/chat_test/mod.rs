@@ -1,6 +1,8 @@
 use crate::util::{get_asset_path, setup_log, LocalAITest};
 use appflowy_local_ai::llm_chat::{ChatPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::plugin_request::download_plugin;
+
+use appflowy_plugin::core::plugin::{handle_macos_security_check, PluginInfo};
 use appflowy_plugin::manager::PluginManager;
 use std::env::temp_dir;
 use std::path::PathBuf;
@@ -83,7 +85,16 @@ async fn load_aws_chat_bin_test() {
   let plugin_manager = PluginManager::new();
   let llm_chat = LocalChatLLMChat::new(Arc::new(plugin_manager));
 
-  let chat_config = ChatPluginConfig::new(chat_bin_path().await, chat_model()).unwrap();
+  let chat_bin = chat_bin_path().await;
+  // clear_extended_attributes(&chat_bin).await.unwrap();
+
+  let mut chat_config = ChatPluginConfig::new(chat_bin, chat_model()).unwrap();
+  handle_macos_security_check(&PluginInfo {
+    name: "".to_string(),
+    exec_path: chat_config.chat_bin_path.clone(),
+  });
+
+  chat_config = chat_config.with_device("gpu");
   llm_chat.init_chat_plugin(chat_config).await.unwrap();
 
   let chat_id = uuid::Uuid::new_v4().to_string();
@@ -96,7 +107,8 @@ async fn load_aws_chat_bin_test() {
 }
 
 async fn chat_bin_path() -> PathBuf {
-  let url = "";
+  let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyLLM_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=gfafCIkenNJpB351HIkYqDUMvqs%3D&Expires=1720914632";
+  // let url = "";
   let temp_dir = temp_dir().join("download_plugin");
   if !temp_dir.exists() {
     std::fs::create_dir(&temp_dir).unwrap();
@@ -105,6 +117,7 @@ async fn chat_bin_path() -> PathBuf {
     .await
     .unwrap();
   println!("Downloaded plugin to {:?}", path);
+
   zip_extract(&path, &temp_dir).unwrap();
   temp_dir.join("chat_plugin")
 }
@@ -112,5 +125,5 @@ async fn chat_bin_path() -> PathBuf {
 fn chat_model() -> PathBuf {
   let model_dir = PathBuf::from(dotenv::var("LOCAL_AI_MODEL_DIR").unwrap());
   let chat_model = dotenv::var("LOCAL_AI_CHAT_MODEL_NAME").unwrap();
-  model_dir.join(&chat_model)
+  model_dir.join(chat_model)
 }
