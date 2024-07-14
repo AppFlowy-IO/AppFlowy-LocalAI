@@ -92,6 +92,10 @@ impl LocalChatLLMChat {
   pub fn subscribe_running_state(&self) -> WatchStream<RunningState> {
     WatchStream::new(self.running_state.subscribe())
   }
+  
+  pub fn get_plugin_running_state(&self) -> RunningState {
+    self.running_state.borrow().clone()
+  }
 
   /// Asks a question and returns a stream of responses.
   ///
