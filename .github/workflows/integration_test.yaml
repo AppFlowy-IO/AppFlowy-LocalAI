@@ -19,7 +19,7 @@ jobs:
           #                    windows-latest,
           #                    ubuntu-latest
         ]
-        build_type: [ release ]
+        build_type: [ debug ]
 
     steps:
       - name: Checkout code

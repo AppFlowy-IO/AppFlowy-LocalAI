@@ -1,5 +1,5 @@
 use crate::util::{get_asset_path, setup_log, LocalAITest};
-use appflowy_local_ai::llm_chat::{ChatPluginConfig, LocalChatLLMChat};
+use appflowy_local_ai::chat_plugin::{ChatPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::plugin_request::download_plugin;
 
 use appflowy_plugin::core::plugin::{handle_macos_security_check, PluginInfo};
