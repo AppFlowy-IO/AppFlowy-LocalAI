@@ -159,7 +159,8 @@ impl LocalChatLLMChat {
 
   #[instrument(skip_all, err)]
   pub async fn destroy_chat_plugin(&self) -> Result<()> {
-    if let Some(plugin_id) = self.running_state.borrow().plugin_id() {
+    let plugin_id = self.running_state.borrow().plugin_id();
+    if let Some(plugin_id) = plugin_id {
       if let Err(err) = self.plugin_manager.remove_plugin(plugin_id).await {
         error!("remove plugin failed: {:?}", err);
       }
@@ -170,7 +171,8 @@ impl LocalChatLLMChat {
 
   #[instrument(skip_all, err)]
   pub async fn init_chat_plugin(&self, config: ChatPluginConfig) -> Result<()> {
-    if self.running_state.borrow().is_ready() {
+    let state = self.running_state.borrow().clone();
+    if state.is_ready() {
       if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
         trace!(
           "[Chat Plugin] existing config: {:?}, new config:{:?}",
