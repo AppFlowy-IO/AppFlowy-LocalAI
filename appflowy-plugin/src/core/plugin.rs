@@ -15,7 +15,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio::sync::watch;
+use tokio_stream::wrappers::{ReceiverStream, WatchStream};
 
 use tracing::{error, info, trace};
 
@@ -66,16 +67,39 @@ pub enum RunningState {
   /// The plugin is in the process of establishing a connection
   Connecting,
   /// The plugin has successfully established a connection
-  Connected,
+  Connected { plugin_id: PluginId },
   /// The plugin is currently running
-  Running,
+  Running { plugin_id: PluginId },
   /// The plugin has been stopped intentionally
-  Stopped,
+  Stopped { plugin_id: PluginId },
   /// The plugin stopped unexpectedly
-  UnexpectedStop,
+  UnexpectedStop { plugin_id: PluginId },
 }
 
-pub type RunningStateSender = tokio::sync::broadcast::Sender<RunningState>;
+impl RunningState {
+  pub fn plugin_id(&self) -> Option<PluginId> {
+    match self {
+      RunningState::Connecting => None,
+      RunningState::Connected { plugin_id } => Some(*plugin_id),
+      RunningState::Running { plugin_id } => Some(*plugin_id),
+      RunningState::Stopped { plugin_id } => Some(*plugin_id),
+      RunningState::UnexpectedStop { plugin_id } => Some(*plugin_id),
+    }
+  }
+
+  pub fn is_ready(&self) -> bool {
+    matches!(self, RunningState::Running { .. })
+  }
+
+  pub fn is_loading(&self) -> bool {
+    matches!(
+      self,
+      RunningState::Connecting | RunningState::Connected { .. }
+    )
+  }
+}
+
+pub type RunningStateSender = watch::Sender<RunningState>;
 
 #[derive(Clone)]
 pub struct Plugin {
@@ -160,8 +184,8 @@ impl Plugin {
     }
   }
 
-  pub fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
-    self.running_state.subscribe()
+  pub fn subscribe_running_state(&self) -> WatchStream<RunningState> {
+    WatchStream::new(self.running_state.subscribe())
   }
 }
 
@@ -184,7 +208,7 @@ pub(crate) async fn start_plugin_process(
     ensure_executable(&plugin_info.exec_path).await?;
   }
 
-  let (tx, rx) = tokio::sync::oneshot::channel();
+  let (tx, ret) = tokio::sync::oneshot::channel();
   let spawn_result = thread::Builder::new()
     .name(format!("<{}> core host thread", &plugin_info.name))
     .spawn(move || {
@@ -215,16 +239,20 @@ pub(crate) async fn start_plugin_process(
             running_state: running_state.clone(),
           };
 
+          let plugin_id = plugin.id;
           state.plugin_connect(Ok(plugin));
-          let _ = running_state.send(RunningState::Connected);
+          let _ = running_state.send(RunningState::Connected { plugin_id });
+          // Notify the main thread that the plugin has started
           let _ = tx.send(());
+
           let mut state = state;
           let err = looper.mainloop(
             &plugin_info.name,
+            &plugin_id,
             || BufReader::new(child_stdout),
             &mut state,
           );
-          let _ = running_state.send(RunningState::Stopped);
+          let _ = running_state.send(RunningState::Stopped { plugin_id });
           state.plugin_exit(id, err);
         },
         Err(err) => {
@@ -239,7 +267,7 @@ pub(crate) async fn start_plugin_process(
     error!("[RPC] thread spawn failed for {:?}, {:?}", id, err);
     return Err(err.into());
   }
-  rx.await?;
+  ret.await?;
   Ok(())
 }
 

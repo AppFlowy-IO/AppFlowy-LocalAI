@@ -1,5 +1,4 @@
 use crate::chat_ops::ChatPluginOperation;
-use crate::state::LLMState;
 use anyhow::{anyhow, Result};
 use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
 use appflowy_plugin::error::PluginError;
@@ -13,7 +12,8 @@ use std::time::Duration;
 use tokio::io;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::wrappers::{ReceiverStream, WatchStream};
+use tokio_stream::StreamExt;
 use tracing::{error, info, instrument, trace};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -33,27 +33,18 @@ impl LocalLLMSetting {
 
 pub struct LocalChatLLMChat {
   plugin_manager: Arc<PluginManager>,
-  state: RwLock<LLMState>,
-  state_notify: tokio::sync::broadcast::Sender<LLMState>,
   plugin_config: RwLock<Option<ChatPluginConfig>>,
-  running_state_sender: RunningStateSender,
+  running_state: RunningStateSender,
 }
 
 impl LocalChatLLMChat {
   pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
-    let running_state_sender = tokio::sync::broadcast::channel(10).0;
-    let (state_notify, _) = tokio::sync::broadcast::channel(10);
+    let running_state = tokio::sync::watch::channel(RunningState::Connecting).0;
     Self {
       plugin_manager,
-      state: RwLock::new(LLMState::Loading),
-      state_notify,
       plugin_config: Default::default(),
-      running_state_sender,
+      running_state,
     }
-  }
-
-  pub fn subscribe_llm_state(&self) -> tokio::sync::broadcast::Receiver<LLMState> {
-    self.state_notify.subscribe()
   }
 
   /// Creates a new chat session.
@@ -92,8 +83,8 @@ impl LocalChatLLMChat {
     Ok(())
   }
 
-  pub fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
-    self.running_state_sender.subscribe()
+  pub fn subscribe_running_state(&self) -> WatchStream<RunningState> {
+    WatchStream::new(self.running_state.subscribe())
   }
 
   /// Asks a question and returns a stream of responses.
@@ -168,19 +159,18 @@ impl LocalChatLLMChat {
 
   #[instrument(skip_all, err)]
   pub async fn destroy_chat_plugin(&self) -> Result<()> {
-    if let Ok(plugin_id) = self.state.read().await.plugin_id() {
+    if let Some(plugin_id) = self.running_state.borrow().plugin_id() {
       if let Err(err) = self.plugin_manager.remove_plugin(plugin_id).await {
         error!("remove plugin failed: {:?}", err);
       }
     }
 
-    self.update_state(LLMState::Uninitialized).await;
     Ok(())
   }
 
   #[instrument(skip_all, err)]
   pub async fn init_chat_plugin(&self, config: ChatPluginConfig) -> Result<()> {
-    if self.state.read().await.is_ready() {
+    if self.running_state.borrow().is_ready() {
       if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
         trace!(
           "[Chat Plugin] existing config: {:?}, new config:{:?}",
@@ -196,7 +186,6 @@ impl LocalChatLLMChat {
     if let Err(err) = self.destroy_chat_plugin().await {
       error!("[Chat Plugin] failed to destroy plugin: {:?}", err);
     }
-    self.update_state(LLMState::Loading).await;
 
     // create new plugin
     trace!("[Chat Plugin] create chat plugin: {:?}", config);
@@ -206,7 +195,7 @@ impl LocalChatLLMChat {
     };
     let plugin_id = self
       .plugin_manager
-      .create_plugin(plugin_info, self.running_state_sender.clone())
+      .create_plugin(plugin_info, self.running_state.clone())
       .await?;
 
     // init plugin
@@ -261,13 +250,7 @@ impl LocalChatLLMChat {
     let plugin = self.plugin_manager.init_plugin(plugin_id, params).await?;
     info!("[Chat Plugin] {} setup success", plugin);
     self.plugin_config.write().await.replace(config);
-    self.update_state(LLMState::Ready { plugin_id }).await;
     Ok(())
-  }
-
-  async fn update_state(&self, state: LLMState) {
-    *self.state.write().await = state.clone();
-    let _ = self.state_notify.send(state);
   }
 
   /// Waits for the plugin to be ready.
@@ -281,15 +264,15 @@ impl LocalChatLLMChat {
   ///
   /// A `Result<()>` indicating success or failure.
   async fn wait_until_plugin_ready(&self) -> Result<()> {
-    let is_loading = self.state.read().await.is_loading();
+    let is_loading = self.running_state.borrow().is_loading();
     if !is_loading {
       return Ok(());
     }
     info!("[Chat Plugin] wait for chat plugin to be ready");
-    let mut rx = self.state_notify.subscribe();
+    let mut rx = self.subscribe_running_state();
     let timeout_duration = Duration::from_secs(30);
     let result = timeout(timeout_duration, async {
-      while let Ok(state) = rx.recv().await {
+      while let Some(state) = rx.next().await {
         if state.is_ready() {
           break;
         }
@@ -312,7 +295,11 @@ impl LocalChatLLMChat {
   ///
   /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
   async fn get_chat_plugin(&self) -> Result<Weak<Plugin>, PluginError> {
-    let plugin_id = self.state.read().await.plugin_id()?;
+    let plugin_id = self
+      .running_state
+      .borrow()
+      .plugin_id()
+      .ok_or_else(|| PluginError::Internal(anyhow!("chat plugin not initialized")))?;
     let plugin = self.plugin_manager.get_plugin(plugin_id).await?;
     Ok(plugin)
   }

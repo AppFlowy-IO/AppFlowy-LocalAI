@@ -1,7 +1,6 @@
 use crate::embedding_ops::EmbeddingPluginOperation;
 use std::collections::HashMap;
 
-use crate::state::LLMState;
 use anyhow::anyhow;
 use anyhow::Result;
 use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
@@ -13,26 +12,23 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
+use tokio_stream::wrappers::WatchStream;
+use tokio_stream::StreamExt;
 use tracing::{info, trace};
 
 pub struct LocalEmbedding {
   plugin_manager: Arc<PluginManager>,
   plugin_config: RwLock<Option<EmbeddingPluginConfig>>,
-  state_notify: tokio::sync::broadcast::Sender<LLMState>,
-  state: RwLock<LLMState>,
-  running_state_sender: RunningStateSender,
+  running_state: RunningStateSender,
 }
 
 impl LocalEmbedding {
   pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
-    let running_state_sender = tokio::sync::broadcast::channel(10).0;
-    let (state_notify, _) = tokio::sync::broadcast::channel(10);
+    let running_state = tokio::sync::watch::channel(RunningState::Connecting).0;
     Self {
       plugin_manager,
       plugin_config: Default::default(),
-      state: RwLock::new(LLMState::Loading),
-      state_notify,
-      running_state_sender,
+      running_state,
     }
   }
 
@@ -52,10 +48,9 @@ impl LocalEmbedding {
       name: "embedding".to_string(),
       exec_path: config.bin_path,
     };
-    self.update_state(LLMState::Loading).await;
     let plugin_id = self
       .plugin_manager
-      .create_plugin(info, self.running_state_sender.clone())
+      .create_plugin(info, self.running_state.clone())
       .await?;
 
     let mut params = json!({
@@ -68,12 +63,11 @@ impl LocalEmbedding {
 
     let plugin = self.plugin_manager.init_plugin(plugin_id, params).await?;
     info!("[Embedding Plugin] {} setup success", plugin);
-    self.update_state(LLMState::Ready { plugin_id }).await;
     Ok(())
   }
 
-  pub fn subscribe_running_state(&self) -> tokio::sync::broadcast::Receiver<RunningState> {
-    self.running_state_sender.subscribe()
+  pub fn subscribe_running_state(&self) -> WatchStream<RunningState> {
+    WatchStream::new(self.running_state.subscribe())
   }
 
   pub async fn generate_embedding(&self, text: &str) -> Result<Vec<Vec<f64>>, PluginError> {
@@ -112,25 +106,25 @@ impl LocalEmbedding {
   }
 
   async fn get_embedding_plugin(&self) -> Result<Weak<Plugin>> {
-    let plugin_id = self.state.read().await.plugin_id()?;
+    let plugin_id = self
+      .running_state
+      .borrow()
+      .plugin_id()
+      .ok_or_else(|| anyhow!("Embedding plugin is not initialized yet"))?;
     let plugin = self.plugin_manager.get_plugin(plugin_id).await?;
     Ok(plugin)
   }
 
-  async fn update_state(&self, state: LLMState) {
-    *self.state.write().await = state.clone();
-  }
-
   async fn wait_plugin_ready(&self) -> Result<()> {
-    let is_loading = self.state.read().await.is_loading();
+    let is_loading = self.running_state.borrow().is_loading();
     if !is_loading {
       return Ok(());
     }
     info!("[Embedding Plugin] wait for plugin to be ready");
-    let mut rx = self.state_notify.subscribe();
+    let mut rx = self.subscribe_running_state();
     let timeout_duration = Duration::from_secs(30);
     let result = timeout(timeout_duration, async {
-      while let Ok(state) = rx.recv().await {
+      while let Some(state) = rx.next().await {
         if state.is_ready() {
           break;
         }

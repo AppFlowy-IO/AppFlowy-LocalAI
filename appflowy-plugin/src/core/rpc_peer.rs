@@ -53,7 +53,7 @@ pub struct RpcState<W: Write> {
   rx_queue: Mutex<VecDeque<Result<RpcObject, ReadError>>>,
   rx_cvar: Condvar,
   writer: Mutex<W>,
-  id: AtomicUsize,
+  request_id_counter: AtomicUsize,
   pending: Mutex<BTreeMap<usize, ResponseHandler>>,
   timers: Mutex<BinaryHeap<Timer>>,
   needs_exit: AtomicBool,
@@ -76,7 +76,7 @@ impl<W: Write> RpcState<W> {
       rx_queue: Mutex::new(VecDeque::new()),
       rx_cvar: Condvar::new(),
       writer: Mutex::new(writer),
-      id: AtomicUsize::new(0),
+      request_id_counter: AtomicUsize::new(0),
       pending: Mutex::new(BTreeMap::new()),
       timers: Mutex::new(BinaryHeap::new()),
       needs_exit: AtomicBool::new(false),
@@ -197,7 +197,7 @@ impl<W: Write> RawPeer<W> {
   /// and sends the RPC request. If sending fails, it immediately invokes the response handler with an error.
   fn send_rpc(&self, method: &str, params: &JsonValue, response_handler: ResponseHandler) {
     trace!("[RPC] call method: {} params: {:?}", method, params);
-    let id = self.0.id.fetch_add(1, Ordering::Relaxed);
+    let id = self.0.request_id_counter.fetch_add(1, Ordering::Relaxed);
     {
       let mut pending = self.0.pending.lock();
       pending.insert(id, response_handler);
@@ -344,9 +344,11 @@ impl<W: Write> RawPeer<W> {
   }
 
   /// send disconnect error to pending requests.
-  pub(crate) fn unexpected_disconnect(&self) {
+  pub(crate) fn unexpected_disconnect(&self, plugin_id: &PluginId) {
     trace!("[RPC] disconnecting peer");
-    let _ = self.0.running_state.send(RunningState::UnexpectedStop);
+    let _ = self.0.running_state.send(RunningState::UnexpectedStop {
+      plugin_id: *plugin_id,
+    });
 
     let mut pending = self.0.pending.lock();
     let ids = pending.keys().cloned().collect::<Vec<_>>();
@@ -364,6 +366,13 @@ impl<W: Write> RawPeer<W> {
 
   pub(crate) fn reset_needs_exit(&self) {
     self.0.needs_exit.store(false, Ordering::SeqCst);
+  }
+
+  pub(crate) fn mark_as_started(&self, plugin_id: PluginId) {
+    let _ = self
+      .0
+      .running_state
+      .send(RunningState::Running { plugin_id });
   }
 }
 
