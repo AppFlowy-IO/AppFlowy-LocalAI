@@ -1,5 +1,5 @@
 use crate::core::parser::{Call, MessageReader};
-use crate::core::plugin::{RpcCtx, RunningStateSender};
+use crate::core::plugin::{PluginId, RpcCtx, RunningStateSender};
 use crate::core::rpc_object::RpcObject;
 use crate::core::rpc_peer::{RawPeer, ResponsePayload, RpcState};
 use crate::error::{PluginError, ReadError, RemoteError};
@@ -26,7 +26,10 @@ pub trait Handler {
 
 /// A helper type which shuts down the runloop if a panic occurs while
 /// handling an RPC.
-struct PanicGuard<'a, W: Write + 'static>(&'a RawPeer<W>);
+struct PanicGuard<'a, W: Write + 'static> {
+  peer: &'a RawPeer<W>,
+  plugin_id: &'a PluginId,
+}
 
 impl<'a, W: Write + 'static> Drop for PanicGuard<'a, W> {
   /// Implements the cleanup behavior when the guard is dropped.
@@ -41,7 +44,7 @@ impl<'a, W: Write + 'static> Drop for PanicGuard<'a, W> {
     //   2. The `disconnect()` method is called on the peer.
     if thread::panicking() {
       error!("[RPC] panic guard hit, closing run loop");
-      self.0.unexpected_disconnect();
+      self.peer.unexpected_disconnect(self.plugin_id);
     }
   }
 }
@@ -116,6 +119,7 @@ impl<W: Write + Send> RpcLoop<W> {
   pub fn mainloop<R, BufferReadFn, H>(
     &mut self,
     _plugin_name: &str,
+    plugin_id: &PluginId,
     buffer_read_fn: BufferReadFn,
     handler: &mut H,
   ) -> Result<(), ReadError>
@@ -148,6 +152,9 @@ impl<W: Write + Send> RpcLoop<W> {
         peer: Arc::new(peer.clone()),
       };
 
+      trace!("[RPC] starting main loop for plugin: {:?}", plugin_id);
+      self.peer.mark_as_started(*plugin_id);
+
       // 1. Spawn a new thread for reading data from a stream.
       // 2. Continuously read data from the stream.
       // 3. Parse the data as JSON.
@@ -165,7 +172,7 @@ impl<W: Write + Send> RpcLoop<W> {
             Err(err) => {
               if self.peer.0.is_blocking() {
                 error!("[RPC] {:?}, disconnecting peer", err);
-                self.peer.unexpected_disconnect();
+                self.peer.unexpected_disconnect(plugin_id);
               }
               self.peer.put_rpc_object(Err(err));
               break;
@@ -197,13 +204,16 @@ impl<W: Write + Send> RpcLoop<W> {
         // panics that occur during RPC request handling and ensure that the system shuts down
         // gracefully, preventing resource leaks and maintaining system integrity.
         //
-        let _guard = PanicGuard(&peer);
+        let _guard = PanicGuard {
+          peer: &peer,
+          plugin_id,
+        };
         let read_result = next_read(&peer, &ctx);
         let json = match read_result {
           Ok(json) => json,
           Err(err) => {
             error!("[RPC] error reading message: {:?}, disconnecting peer", err);
-            peer.unexpected_disconnect();
+            peer.unexpected_disconnect(plugin_id);
             return err;
           },
         };
@@ -221,7 +231,7 @@ impl<W: Write + Send> RpcLoop<W> {
           },
           Err(err) => {
             error!("[RPC] error parsing message: {:?}", err);
-            peer.unexpected_disconnect();
+            peer.unexpected_disconnect(plugin_id);
             return ReadError::UnknownRequest(err);
           },
           Ok(Call::Message(_msg)) => {

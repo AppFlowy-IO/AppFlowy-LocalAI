@@ -1,5 +1,5 @@
+pub mod chat_ops;
 pub mod chat_plugin;
+pub mod embedding_ops;
 pub mod embedding_plugin;
-pub mod llm_chat;
-pub mod llm_embedding;
-pub mod state;
+pub mod plugin_request;

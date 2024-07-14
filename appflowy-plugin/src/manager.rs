@@ -41,7 +41,7 @@ impl PluginManager {
   pub async fn create_plugin(
     &self,
     plugin_info: PluginInfo,
-    running_state_sender: RunningStateSender,
+    running_state: RunningStateSender,
   ) -> Result<PluginId, PluginError> {
     if self.operating_system.is_not_desktop() {
       return Err(PluginError::Internal(anyhow!(
@@ -50,7 +50,7 @@ impl PluginManager {
     }
     let plugin_id = PluginId::from(self.plugin_id_counter.fetch_add(1, Ordering::SeqCst));
     let weak_state = WeakPluginState(Arc::downgrade(&self.state));
-    start_plugin_process(plugin_info, plugin_id, weak_state, running_state_sender).await?;
+    start_plugin_process(plugin_info, plugin_id, weak_state, running_state).await?;
     Ok(plugin_id)
   }
 
@@ -142,7 +142,7 @@ impl PluginState {
         self.plugins.push(Arc::new(plugin));
       },
       Err(err) => {
-        warn!("plugin failed to connect: {:?}", err);
+        error!("plugin failed to connect: {:?}", err);
       },
     }
   }
