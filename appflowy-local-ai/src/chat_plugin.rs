@@ -1,6 +1,8 @@
 use crate::chat_ops::ChatPluginOperation;
 use anyhow::{anyhow, Result};
-use appflowy_plugin::core::plugin::{Plugin, PluginInfo, RunningState, RunningStateSender};
+use appflowy_plugin::core::plugin::{
+  Plugin, PluginInfo, RunningState, RunningStateReceiver, RunningStateSender,
+};
 use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::{get_operating_system, OperatingSystem};
@@ -35,15 +37,19 @@ pub struct LocalChatLLMChat {
   plugin_manager: Arc<PluginManager>,
   plugin_config: RwLock<Option<ChatPluginConfig>>,
   running_state: RunningStateSender,
+  #[allow(dead_code)]
+  // keep at least one receiver that make sure the sender can receive value
+  running_state_rx: RunningStateReceiver,
 }
 
 impl LocalChatLLMChat {
   pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
-    let running_state = tokio::sync::watch::channel(RunningState::Connecting).0;
+    let (running_state, rx) = tokio::sync::watch::channel(RunningState::Connecting);
     Self {
       plugin_manager,
       plugin_config: Default::default(),
-      running_state,
+      running_state: Arc::new(running_state),
+      running_state_rx: rx,
     }
   }
 

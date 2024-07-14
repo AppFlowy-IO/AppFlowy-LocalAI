@@ -152,6 +152,7 @@ impl<W: Write + Send> RpcLoop<W> {
         peer: Arc::new(peer.clone()),
       };
 
+      trace!("[RPC] starting main loop for plugin: {:?}", plugin_id);
       self.peer.mark_as_started(*plugin_id);
 
       // 1. Spawn a new thread for reading data from a stream.

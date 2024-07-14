@@ -99,7 +99,8 @@ impl RunningState {
   }
 }
 
-pub type RunningStateSender = watch::Sender<RunningState>;
+pub type RunningStateSender = Arc<watch::Sender<RunningState>>;
+pub type RunningStateReceiver = watch::Receiver<RunningState>;
 
 #[derive(Clone)]
 pub struct Plugin {
@@ -241,7 +242,9 @@ pub(crate) async fn start_plugin_process(
 
           let plugin_id = plugin.id;
           state.plugin_connect(Ok(plugin));
-          let _ = running_state.send(RunningState::Connected { plugin_id });
+          if let Err(err) = running_state.send(RunningState::Connected { plugin_id }) {
+            error!("failed to send connected state: {:?}", err);
+          }
           // Notify the main thread that the plugin has started
           let _ = tx.send(());
 
