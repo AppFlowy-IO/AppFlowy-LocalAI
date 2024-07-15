@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
@@ -327,7 +327,10 @@ pub fn handle_macos_security_check(plugin_info: &PluginInfo) {
     trace!("Open plugin file manually: {:?}", plugin_info.exec_path);
     // Using 'open' to trigger the macOS security check. After the user allows opening the binary,
     // any subsequent 'open' command will not trigger the security check and the binary will run with permission.
-    if let Err(err) = Command::new("open").arg(&plugin_info.exec_path).output() {
+    if let Err(err) = std::process::Command::new("open")
+      .arg(&plugin_info.exec_path)
+      .output()
+    {
       error!("Failed to open plugin file: {:?}", err);
     }
   }
