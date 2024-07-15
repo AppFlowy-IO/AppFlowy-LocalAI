@@ -70,8 +70,8 @@ jobs:
         run: |
           ls
           ABS_PATH=$(pwd)
-          chat_bin_path=$ABS_PATH/AppFlowyLLM/chat_plugin
-          embedding_bin_path=$ABS_PATH/AppFlowyLLM/embedding_plugin
+          chat_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_ai_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_embedding_plugin
           
           cp dev.env .env
           sed -i '' 's|RUST_LOG=.*|RUST_LOG=trace|' .env
@@ -90,8 +90,8 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           ABS_PATH=$(pwd)
-          chat_bin_path=$ABS_PATH/AppFlowyLLM/chat_plugin
-          embedding_bin_path=$ABS_PATH/AppFlowyLLM/embedding_plugin
+          chat_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_ai_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_embedding_plugin
           
           cp dev.env .env
           sed -i 's|RUST_LOG=.*|RUST_LOG=trace|' .env
@@ -112,8 +112,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           try {
             $ABS_PATH = $PWD.Path
-            $chat_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'chat_plugin.exe'
-            $embedding_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'embedding_plugin.exe'
+            $chat_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'appflowy_ai_plugin.exe'
+            $embedding_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'appflowy_embedding_plugin.exe'
 
             Copy-Item -Path 'dev.env' -Destination '.env' -Force
 
