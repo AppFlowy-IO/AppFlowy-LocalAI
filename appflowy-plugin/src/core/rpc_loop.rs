@@ -212,7 +212,7 @@ impl<W: Write + Send> RpcLoop<W> {
         let json = match read_result {
           Ok(json) => json,
           Err(err) => {
-            error!("[RPC] error reading message: {:?}, disconnecting peer", err);
+            error!("[RPC] read error: {:?}, disconnecting peer", err);
             peer.unexpected_disconnect(plugin_id);
             return err;
           },
