@@ -3,6 +3,7 @@ use crate::core::rpc_object::RpcObject;
 use crate::error::{ReadError, RemoteError};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufRead;
+use tracing::error;
 
 #[derive(Debug, Default)]
 pub struct MessageReader(String);
@@ -33,10 +34,11 @@ impl MessageReader {
   pub fn parse(&self, s: &str) -> Result<RpcObject, ReadError> {
     match serde_json::from_str::<JsonValue>(s) {
       Ok(val) => {
-        if !val.is_object() {
-          Err(ReadError::NotObject(s.to_string()))
-        } else {
+        if val.is_object() {
           Ok(val.into())
+        } else {
+          error!("Expected JSON object, found: {}", s);
+          Ok(RpcObject(json!({"message": s.to_string()})))
         }
       },
       Err(_) => Ok(RpcObject(json!({"message": s.to_string()}))),
