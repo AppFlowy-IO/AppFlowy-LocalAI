@@ -1,5 +1,5 @@
 use crate::util::{get_asset_path, setup_log, LocalAITest};
-use appflowy_local_ai::chat_plugin::{ChatPluginConfig, LocalChatLLMChat};
+use appflowy_local_ai::chat_plugin::{AIPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::plugin_request::download_plugin;
 
 use appflowy_plugin::core::plugin::{handle_macos_security_check, PluginInfo};
@@ -88,7 +88,7 @@ async fn load_aws_chat_bin_test() {
   let chat_bin = chat_bin_path().await;
   // clear_extended_attributes(&chat_bin).await.unwrap();
 
-  let mut chat_config = ChatPluginConfig::new(chat_bin, chat_model()).unwrap();
+  let mut chat_config = AIPluginConfig::new(chat_bin, chat_model()).unwrap();
   handle_macos_security_check(&PluginInfo {
     name: "".to_string(),
     exec_path: chat_config.chat_bin_path.clone(),
@@ -107,7 +107,7 @@ async fn load_aws_chat_bin_test() {
 }
 
 async fn chat_bin_path() -> PathBuf {
-  let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyLLM_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=gfafCIkenNJpB351HIkYqDUMvqs%3D&Expires=1720914632";
+  let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyLLM_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=p8evDjdypl58nbGK8qJ%2F1l0Zs%2FU%3D&Expires=1721044152";
   // let url = "";
   let temp_dir = temp_dir().join("download_plugin");
   if !temp_dir.exists() {
@@ -119,7 +119,7 @@ async fn chat_bin_path() -> PathBuf {
   println!("Downloaded plugin to {:?}", path);
 
   zip_extract(&path, &temp_dir).unwrap();
-  temp_dir.join("chat_plugin")
+  temp_dir.join("appflowy_ai_plugin")
 }
 
 fn chat_model() -> PathBuf {

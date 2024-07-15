@@ -1,5 +1,5 @@
 use anyhow::Result;
-use appflowy_local_ai::chat_plugin::{ChatPluginConfig, LocalChatLLMChat};
+use appflowy_local_ai::chat_plugin::{AIPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::embedding_plugin::{EmbeddingPluginConfig, LocalEmbedding};
 use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
@@ -33,7 +33,7 @@ impl LocalAITest {
   }
 
   pub async fn init_chat_plugin(&self) {
-    let mut config = ChatPluginConfig::new(
+    let mut config = AIPluginConfig::new(
       self.config.chat_bin_path.clone(),
       self.config.chat_model_absolute_path(),
     )

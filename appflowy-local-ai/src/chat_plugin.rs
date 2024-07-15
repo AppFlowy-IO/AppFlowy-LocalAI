@@ -28,14 +28,14 @@ pub struct LocalLLMSetting {
 
 impl LocalLLMSetting {
   pub fn validate(&self) -> Result<()> {
-    ChatPluginConfig::new(&self.chat_bin_path, &self.chat_model_path)?;
+    AIPluginConfig::new(&self.chat_bin_path, &self.chat_model_path)?;
     Ok(())
   }
 }
 
 pub struct LocalChatLLMChat {
   plugin_manager: Arc<PluginManager>,
-  plugin_config: RwLock<Option<ChatPluginConfig>>,
+  plugin_config: RwLock<Option<AIPluginConfig>>,
   running_state: RunningStateSender,
   #[allow(dead_code)]
   // keep at least one receiver that make sure the sender can receive value
@@ -92,7 +92,7 @@ impl LocalChatLLMChat {
   pub fn subscribe_running_state(&self) -> WatchStream<RunningState> {
     WatchStream::new(self.running_state.subscribe())
   }
-  
+
   pub fn get_plugin_running_state(&self) -> RunningState {
     self.running_state.borrow().clone()
   }
@@ -180,7 +180,7 @@ impl LocalChatLLMChat {
   }
 
   #[instrument(skip_all, err)]
-  pub async fn init_chat_plugin(&self, config: ChatPluginConfig) -> Result<()> {
+  pub async fn init_chat_plugin(&self, config: AIPluginConfig) -> Result<()> {
     let state = self.running_state.borrow().clone();
     if state.is_ready() {
       if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
@@ -318,7 +318,7 @@ impl LocalChatLLMChat {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct ChatPluginConfig {
+pub struct AIPluginConfig {
   pub chat_bin_path: PathBuf,
   pub chat_model_path: PathBuf,
   pub related_model_path: Option<PathBuf>,
@@ -328,7 +328,7 @@ pub struct ChatPluginConfig {
   pub verbose: bool,
 }
 
-impl ChatPluginConfig {
+impl AIPluginConfig {
   pub fn new<T: Into<PathBuf>>(chat_bin_path: T, chat_model_path: T) -> Result<Self> {
     let chat_bin_path = chat_bin_path.into();
     if !chat_bin_path.exists() {
