@@ -113,7 +113,7 @@ async fn chat_bin_path() -> PathBuf {
   if !temp_dir.exists() {
     std::fs::create_dir(&temp_dir).unwrap();
   }
-  let path = download_plugin(url, &temp_dir, "AppFlowyLLM.zip", None, None)
+  let path = download_plugin(url, &temp_dir, "AppFlowyLLM.zip", None, None, None)
     .await
     .unwrap();
   println!("Downloaded plugin to {:?}", path);

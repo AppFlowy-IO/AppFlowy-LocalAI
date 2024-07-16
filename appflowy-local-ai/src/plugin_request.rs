@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use reqwest::Client;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::fs;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -17,6 +18,7 @@ pub async fn download_plugin(
   file_name: &str,
   cancel_token: Option<CancellationToken>,
   progress_callback: Option<ProgressCallback>,
+  callback_debounce: Option<Duration>,
 ) -> Result<PathBuf, anyhow::Error> {
   let client = Client::new();
   let response = client.get(url).send().await?;
@@ -24,6 +26,11 @@ pub async fn download_plugin(
   if !response.status().is_success() {
     return Err(anyhow!("Failed to download file: {}", response.status()));
   }
+  // Debounce settings
+  let debounce_duration = callback_debounce.unwrap_or_else(|| Duration::from_millis(500));
+  let mut last_update = Instant::now()
+    .checked_sub(debounce_duration)
+    .unwrap_or(Instant::now());
 
   let total_size = response
     .content_length()
@@ -51,7 +58,11 @@ pub async fn download_plugin(
 
     // Call the progress callback
     if let Some(progress_callback) = &progress_callback {
-      progress_callback(downloaded, total_size);
+      let now = Instant::now();
+      if now.duration_since(last_update) >= debounce_duration {
+        progress_callback(downloaded, total_size);
+        last_update = now;
+      }
     }
   }
 

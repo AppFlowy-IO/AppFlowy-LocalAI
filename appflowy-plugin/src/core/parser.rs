@@ -3,7 +3,7 @@ use crate::core::rpc_object::RpcObject;
 use crate::error::{ReadError, RemoteError};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufRead;
-use tracing::{error, warn};
+use tracing::{error};
 
 #[derive(Debug, Default)]
 pub struct MessageReader(String);
@@ -21,11 +21,9 @@ impl MessageReader {
     self.0.clear();
     let _ = reader.read_line(&mut self.0)?;
     if self.0.is_empty() {
-      // Err(ReadError::Disconnect(
-      //   "stdout doesn't return empty line".to_string(),
-      // ))
-      warn!("stdout return unexpected output: {}", self.0);
-      Ok(RpcObject::from(json!({})))
+      Err(ReadError::Disconnect(
+        "stdout return empty line".to_string(),
+      ))
     } else {
       self.parse(&self.0)
     }
