@@ -3,7 +3,7 @@ use crate::core::rpc_object::RpcObject;
 use crate::error::{ReadError, RemoteError};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufRead;
-use tracing::{error};
+use tracing::error;
 
 #[derive(Debug, Default)]
 pub struct MessageReader(String);
