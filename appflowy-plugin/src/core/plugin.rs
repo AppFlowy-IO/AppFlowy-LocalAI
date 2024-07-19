@@ -9,7 +9,7 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::process::{Child, Stdio};
 use std::sync::Arc;
 use std::thread;
