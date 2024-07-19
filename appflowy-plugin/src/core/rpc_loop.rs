@@ -154,7 +154,6 @@ impl<W: Write + Send> RpcLoop<W> {
       };
 
       trace!("[RPC] starting main loop for plugin: {:?}", plugin_id);
-      self.peer.mark_as_started(*plugin_id);
 
       // 1. Spawn a new thread for reading data from a stream.
       // 2. Continuously read data from the stream.
@@ -178,6 +177,7 @@ impl<W: Write + Send> RpcLoop<W> {
               break;
             },
           };
+          self.peer.notify_running(*plugin_id);
           if json.is_response() {
             let request_id = json.get_id().unwrap();
             match json.into_response() {

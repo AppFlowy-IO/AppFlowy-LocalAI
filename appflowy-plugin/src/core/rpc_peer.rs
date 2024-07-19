@@ -368,11 +368,15 @@ impl<W: Write> RawPeer<W> {
     self.0.needs_exit.store(false, Ordering::SeqCst);
   }
 
-  pub(crate) fn mark_as_started(&self, plugin_id: PluginId) {
-    let _ = self
-      .0
-      .running_state
-      .send(RunningState::Running { plugin_id });
+  pub(crate) fn notify_running(&self, plugin_id: PluginId) {
+    // if current running state is not equal to Running, we need to notify the plugin to start running.
+    let is_running = matches!(*self.0.running_state.borrow(), RunningState::Running { .. });
+    if !is_running {
+      let _ = self
+        .0
+        .running_state
+        .send(RunningState::Running { plugin_id });
+    }
   }
 }
 
