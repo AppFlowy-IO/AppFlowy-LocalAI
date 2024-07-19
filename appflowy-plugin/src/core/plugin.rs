@@ -215,7 +215,7 @@ pub(crate) async fn start_plugin_process(
       info!("Load {} plugin", &plugin_info.name);
 
       #[cfg(target_os = "macos")]
-      core::plugin::handle_macos_security_check(&plugin_info);
+      handle_macos_security_check(&plugin_info);
 
       let child = std::process::Command::new(&plugin_info.exec_path)
         .stdin(Stdio::piped())
