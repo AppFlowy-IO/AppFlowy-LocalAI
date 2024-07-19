@@ -43,7 +43,9 @@ impl<'a, W: Write + 'static> Drop for PanicGuard<'a, W> {
     //   1. An error message is logged.
     //   2. The `disconnect()` method is called on the peer.
     if thread::panicking() {
-      self.peer.unexpected_disconnect(self.plugin_id, &ReadError::Disconnect("Panic".to_string()));
+      self
+        .peer
+        .unexpected_disconnect(self.plugin_id, &ReadError::Disconnect("Panic".to_string()));
     }
   }
 }
