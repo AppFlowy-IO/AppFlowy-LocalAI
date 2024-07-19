@@ -43,8 +43,7 @@ impl<'a, W: Write + 'static> Drop for PanicGuard<'a, W> {
     //   1. An error message is logged.
     //   2. The `disconnect()` method is called on the peer.
     if thread::panicking() {
-      error!("[RPC] panic guard hit, closing run loop");
-      self.peer.unexpected_disconnect(self.plugin_id);
+      self.peer.unexpected_disconnect(self.plugin_id, &ReadError::Disconnect("Panic".to_string()));
     }
   }
 }
@@ -171,8 +170,7 @@ impl<W: Write + Send> RpcLoop<W> {
             Ok(json) => json,
             Err(err) => {
               if self.peer.0.is_blocking() {
-                error!("[RPC] {:?}, disconnecting peer", err);
-                self.peer.unexpected_disconnect(plugin_id);
+                self.peer.unexpected_disconnect(plugin_id, &err);
               }
               self.peer.put_rpc_object(Err(err));
               break;
@@ -212,8 +210,7 @@ impl<W: Write + Send> RpcLoop<W> {
         let json = match read_result {
           Ok(json) => json,
           Err(err) => {
-            error!("[RPC] read error: {:?}, disconnecting peer", err);
-            peer.unexpected_disconnect(plugin_id);
+            peer.unexpected_disconnect(plugin_id, &err);
             return err;
           },
         };
@@ -230,8 +227,7 @@ impl<W: Write + Send> RpcLoop<W> {
             peer.respond(Err(err), id)
           },
           Err(err) => {
-            error!("[RPC] error parsing message: {:?}", err);
-            peer.unexpected_disconnect(plugin_id);
+            peer.unexpected_disconnect(plugin_id, &err);
             return ReadError::UnknownRequest(err);
           },
           Ok(Call::Message(_msg)) => {
