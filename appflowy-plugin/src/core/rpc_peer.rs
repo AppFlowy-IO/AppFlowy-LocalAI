@@ -5,7 +5,7 @@ use parking_lot::{Condvar, Mutex};
 use serde::{de, ser, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value as JsonValue};
 use std::collections::{BTreeMap, BinaryHeap, VecDeque};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::io::Write;
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -344,8 +344,8 @@ impl<W: Write> RawPeer<W> {
   }
 
   /// send disconnect error to pending requests.
-  pub(crate) fn unexpected_disconnect(&self, plugin_id: &PluginId) {
-    trace!("[RPC] disconnecting peer");
+  pub(crate) fn unexpected_disconnect<E: Debug>(&self, plugin_id: &PluginId, error: &E) {
+    trace!("[RPC] disconnecting peer: {:?}", error);
     let _ = self.0.running_state.send(RunningState::UnexpectedStop {
       plugin_id: *plugin_id,
     });

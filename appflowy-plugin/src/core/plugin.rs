@@ -9,7 +9,7 @@ use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Stdio};
 use std::sync::Arc;
 use std::thread;
@@ -276,7 +276,7 @@ pub(crate) async fn start_plugin_process(
 }
 
 #[cfg(unix)]
-async fn ensure_executable(exec_path: &Path) -> Result<(), anyhow::Error> {
+async fn ensure_executable(exec_path: &std::path::Path) -> Result<(), anyhow::Error> {
   use std::os::unix::fs::PermissionsExt;
 
   let metadata = tokio::fs::metadata(exec_path).await?;

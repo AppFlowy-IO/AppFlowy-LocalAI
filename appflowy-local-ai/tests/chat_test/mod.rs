@@ -2,7 +2,6 @@ use crate::util::{get_asset_path, setup_log, LocalAITest};
 use appflowy_local_ai::chat_plugin::{AIPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::plugin_request::download_plugin;
 
-use appflowy_plugin::core::plugin::{handle_macos_security_check, PluginInfo};
 use appflowy_plugin::manager::PluginManager;
 use std::env::temp_dir;
 use std::path::PathBuf;
@@ -14,7 +13,6 @@ use zip_extensions::zip_extract;
 async fn load_chat_model_test() {
   let test = LocalAITest::new().unwrap();
   test.init_chat_plugin().await;
-  test.init_embedding_plugin().await;
 
   let chat_id = uuid::Uuid::new_v4().to_string();
   let resp = test
@@ -22,6 +20,7 @@ async fn load_chat_model_test() {
     .await;
   eprintln!("chat response: {:?}", resp);
 
+  test.init_embedding_plugin().await;
   let score = test.calculate_similarity(&resp, "Hello").await;
   assert!(score > 0.9, "score: {}", score);
 }
@@ -89,11 +88,6 @@ async fn load_aws_chat_bin_test() {
   // clear_extended_attributes(&chat_bin).await.unwrap();
 
   let mut chat_config = AIPluginConfig::new(chat_bin, chat_model()).unwrap();
-  handle_macos_security_check(&PluginInfo {
-    name: "".to_string(),
-    exec_path: chat_config.chat_bin_path.clone(),
-  });
-
   chat_config = chat_config.with_device("gpu");
   llm_chat.init_chat_plugin(chat_config).await.unwrap();
 
