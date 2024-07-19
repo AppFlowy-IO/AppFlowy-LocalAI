@@ -306,7 +306,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
-  async fn get_chat_plugin(&self) -> Result<Weak<Plugin>, PluginError> {
+  pub async fn get_chat_plugin(&self) -> Result<Weak<Plugin>, PluginError> {
     let plugin_id = self
       .running_state
       .borrow()

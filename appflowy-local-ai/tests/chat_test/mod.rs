@@ -30,8 +30,22 @@ async fn ci_chat_stream_test() {
   let test = LocalAITest::new().unwrap();
   test.init_chat_plugin().await;
   test.init_embedding_plugin().await;
-  let chat_id = uuid::Uuid::new_v4().to_string();
 
+  let chat_plugin = test
+    .chat_manager
+    .get_chat_plugin()
+    .await
+    .unwrap()
+    .upgrade()
+    .unwrap();
+  let mut state_rx = chat_plugin.subscribe_running_state();
+  tokio::spawn(async move {
+    while let Some(state) = state_rx.next().await {
+      eprintln!("chat state: {:?}", state);
+    }
+  });
+
+  let chat_id = uuid::Uuid::new_v4().to_string();
   let mut resp = test.stream_chat_message(&chat_id, "what is banana?").await;
   let mut list = vec![];
   while let Some(s) = resp.next().await {
