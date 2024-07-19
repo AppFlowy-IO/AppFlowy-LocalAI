@@ -20,9 +20,9 @@ async fn load_chat_model_test() {
     .await;
   eprintln!("chat response: {:?}", resp);
 
-  // test.init_embedding_plugin().await;
-  // let score = test.calculate_similarity(&resp, "Hello").await;
-  // assert!(score > 0.9, "score: {}", score);
+  test.init_embedding_plugin().await;
+  let score = test.calculate_similarity(&resp, "Hello").await;
+  assert!(score > 0.9, "score: {}", score);
 }
 
 #[tokio::test]

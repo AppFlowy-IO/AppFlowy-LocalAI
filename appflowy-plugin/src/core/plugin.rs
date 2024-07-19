@@ -215,7 +215,7 @@ pub(crate) async fn start_plugin_process(
       info!("Load {} plugin", &plugin_info.name);
 
       #[cfg(target_os = "macos")]
-      appflowy_plugin::core::plugin::handle_macos_security_check(&plugin_info);
+      core::plugin::handle_macos_security_check(&plugin_info);
 
       let child = std::process::Command::new(&plugin_info.exec_path)
         .stdin(Stdio::piped())
@@ -276,7 +276,7 @@ pub(crate) async fn start_plugin_process(
 }
 
 #[cfg(unix)]
-async fn ensure_executable(exec_path: &Path) -> Result<(), anyhow::Error> {
+async fn ensure_executable(exec_path: &std::path::Path) -> Result<(), anyhow::Error> {
   use std::os::unix::fs::PermissionsExt;
 
   let metadata = tokio::fs::metadata(exec_path).await?;
