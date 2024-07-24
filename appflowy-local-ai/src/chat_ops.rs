@@ -173,8 +173,8 @@ pub enum CompleteTextType {
   AskAI = 5,
 }
 
-impl From<i8> for CompleteTextType {
-  fn from(value: i8) -> Self {
+impl From<u8> for CompleteTextType {
+  fn from(value: u8) -> Self {
     match value {
       1 => CompleteTextType::ImproveWriting,
       2 => CompleteTextType::SpellingAndGrammar,
