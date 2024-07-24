@@ -28,8 +28,6 @@ jobs:
           aws s3 cp s3://appflowy-local-ai-test/macos-latest/AppFlowyLLM_debug.zip AppFlowyLLM_macos-latest_debug.zip
           unzip AppFlowyLLM_macos-latest_debug.zip -d AppFlowyLLM
           cd AppFlowyLLM
-          pwd
-          ls
         shell: bash
 
       - name: Download models

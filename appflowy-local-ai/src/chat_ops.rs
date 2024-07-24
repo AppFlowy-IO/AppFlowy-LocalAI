@@ -102,6 +102,21 @@ impl ChatPluginOperation {
       )
       .await
   }
+
+  #[instrument(level = "debug", skip(self), err)]
+  pub async fn complete_text(
+    &self,
+    message: &str,
+    complete_type: CompleteTextType,
+  ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
+    let plugin = self.get_plugin()?;
+    let complete_type = complete_type as u8;
+    let params = json!({
+        "method": "complete_text",
+        "params": { "text": message, "type": complete_type }
+    });
+    plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
+  }
 }
 
 pub struct ChatResponseParser;
@@ -140,9 +155,32 @@ impl ResponseParser for ChatRelatedQuestionsResponseParser {
       .map(|array| {
         array
           .iter()
-          .filter_map(|item| item.as_str().map(|s| s.to_string()))
+          .filter_map(|item| item.get("content").map(|s| s.to_string()))
           .collect()
       })
       .ok_or(RemoteError::ParseResponse(json))
+  }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum CompleteTextType {
+  ImproveWriting = 1,
+  SpellingAndGrammar = 2,
+  MakeShorter = 3,
+  MakeLonger = 4,
+  AskAI = 5,
+}
+
+impl From<i8> for CompleteTextType {
+  fn from(value: i8) -> Self {
+    match value {
+      1 => CompleteTextType::ImproveWriting,
+      2 => CompleteTextType::SpellingAndGrammar,
+      3 => CompleteTextType::MakeShorter,
+      4 => CompleteTextType::MakeLonger,
+      5 => CompleteTextType::AskAI,
+      _ => CompleteTextType::ImproveWriting,
+    }
   }
 }

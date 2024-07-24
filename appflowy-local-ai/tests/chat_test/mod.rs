@@ -2,6 +2,7 @@ use crate::util::{get_asset_path, setup_log, LocalAITest};
 use appflowy_local_ai::chat_plugin::{AIPluginConfig, LocalChatLLMChat};
 use appflowy_local_ai::plugin_request::download_plugin;
 
+use appflowy_local_ai::chat_ops::CompleteTextType;
 use appflowy_plugin::manager::PluginManager;
 use std::env::temp_dir;
 use std::path::PathBuf;
@@ -56,6 +57,52 @@ async fn ci_chat_stream_test() {
   eprintln!("response: {:?}", answer);
 
   let expected = r#"banana is a fruit that belongs to the genus _______, which also includes other fruits such as apple and pear. It has several varieties with different shapes, colors, and flavors depending on where it grows. Bananas are typically green or yellow in color and have smooth skin that peels off easily when ripe. They are sweet and juicy, often eaten raw or roasted, and can also be used for cooking and baking. In some cultures, banana is considered a symbol of good luck, fertility, and prosperity. Bananas originated in Southeast Asia, where they were cultivated by early humans thousands of years ago. They are now grown around the world as a major crop, with significant production in many countries including the United States, Brazil, India, and China#"#;
+  let score = test.calculate_similarity(&answer, expected).await;
+  assert!(score > 0.7, "score: {}", score);
+
+  let questions = test
+    .chat_manager
+    .get_related_question(&chat_id)
+    .await
+    .unwrap();
+  assert_eq!(questions.len(), 3);
+  println!("related questions: {:?}", questions)
+}
+
+#[tokio::test]
+async fn ci_completion_text_test() {
+  let test = LocalAITest::new().unwrap();
+  test.init_chat_plugin().await;
+  test.init_embedding_plugin().await;
+
+  let chat_plugin = test
+    .chat_manager
+    .get_chat_plugin()
+    .await
+    .unwrap()
+    .upgrade()
+    .unwrap();
+  let mut state_rx = chat_plugin.subscribe_running_state();
+  tokio::spawn(async move {
+    while let Some(state) = state_rx.next().await {
+      eprintln!("chat state: {:?}", state);
+    }
+  });
+
+  let mut resp = test
+    .chat_manager
+    .complete_text("tell me the book, atomic habits", CompleteTextType::AskAI)
+    .await
+    .unwrap();
+  let mut list = vec![];
+  while let Some(s) = resp.next().await {
+    list.push(String::from_utf8(s.unwrap().to_vec()).unwrap());
+  }
+
+  let answer = list.join("");
+  eprintln!("response: {:?}", answer);
+
+  let expected = r#"The book you're referring to is "Atomic Habits" by James Clear. It offers practical strategies for forming good habits, breaking bad ones, and mastering the tiny behaviors that lead to remarkable results"#;
   let score = test.calculate_similarity(&answer, expected).await;
   assert!(score > 0.7, "score: {}", score);
 }

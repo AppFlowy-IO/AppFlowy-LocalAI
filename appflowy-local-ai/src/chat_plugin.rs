@@ -1,4 +1,4 @@
-use crate::chat_ops::ChatPluginOperation;
+use crate::chat_ops::{ChatPluginOperation, CompleteTextType};
 use anyhow::{anyhow, Result};
 use appflowy_plugin::core::plugin::{
   Plugin, PluginInfo, RunningState, RunningStateReceiver, RunningStateSender,
@@ -63,7 +63,7 @@ impl LocalChatLLMChat {
   ///
   /// A `Result<()>` indicating success or failure.
   pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
-    trace!("[Chat Plugin] create chat: {}", chat_id);
+    trace!("[AI Plugin] create chat: {}", chat_id);
     self.wait_until_plugin_ready().await?;
 
     let plugin = self.get_chat_plugin().await?;
@@ -82,7 +82,7 @@ impl LocalChatLLMChat {
   ///
   /// A `Result<()>` indicating success or failure.
   pub async fn close_chat(&self, chat_id: &str) -> Result<()> {
-    trace!("[Chat Plugin] close chat: {}", chat_id);
+    trace!("[AI Plugin] close chat: {}", chat_id);
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
     operation.close_chat(chat_id).await?;
@@ -112,7 +112,7 @@ impl LocalChatLLMChat {
     chat_id: &str,
     message: &str,
   ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
-    trace!("[Chat Plugin] ask question: {}", message);
+    trace!("[AI Plugin] ask question: {}", message);
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
@@ -144,7 +144,7 @@ impl LocalChatLLMChat {
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_chat_plugin().await?;
     let operation = ChatPluginOperation::new(plugin);
-    trace!("[Chat Plugin] indexing file: {}", file_path);
+    trace!("[AI Plugin] indexing file: {}", file_path);
     operation.index_file(chat_id, file_path).await?;
     Ok(())
   }
@@ -179,13 +179,26 @@ impl LocalChatLLMChat {
     Ok(())
   }
 
+  pub async fn complete_text(
+    &self,
+    message: &str,
+    complete_type: CompleteTextType,
+  ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
+    trace!("[AI Plugin]  complete text: {}", message);
+    self.wait_until_plugin_ready().await?;
+    let plugin = self.get_chat_plugin().await?;
+    let operation = ChatPluginOperation::new(plugin);
+    let stream = operation.complete_text(message, complete_type).await?;
+    Ok(stream)
+  }
+
   #[instrument(skip_all, err)]
   pub async fn init_chat_plugin(&self, config: AIPluginConfig) -> Result<()> {
     let state = self.running_state.borrow().clone();
     if state.is_ready() {
       if let Some(existing_config) = self.plugin_config.read().await.as_ref() {
         trace!(
-          "[Chat Plugin] existing config: {:?}, new config:{:?}",
+          "[AI Plugin] existing config: {:?}, new config:{:?}",
           existing_config,
           config
         );
@@ -196,11 +209,11 @@ impl LocalChatLLMChat {
     // Initialize chat plugin if the config is different
     // If the chat_bin_path is different, remove the old plugin
     if let Err(err) = self.destroy_chat_plugin().await {
-      error!("[Chat Plugin] failed to destroy plugin: {:?}", err);
+      error!("[AI Plugin] failed to destroy plugin: {:?}", err);
     }
 
     // create new plugin
-    trace!("[Chat Plugin] create chat plugin: {:?}", config);
+    trace!("[AI Plugin] create chat plugin: {:?}", config);
     let plugin_info = PluginInfo {
       name: "chat_plugin".to_string(),
       exec_path: config.chat_bin_path.clone(),
@@ -211,7 +224,7 @@ impl LocalChatLLMChat {
       .await?;
 
     // init plugin
-    trace!("[Chat Plugin] init chat plugin model: {:?}", plugin_id);
+    trace!("[AI Plugin] init chat plugin model: {:?}", plugin_id);
     let model_path = config.chat_model_path.clone();
     let mut params = match system {
       OperatingSystem::Windows => {
@@ -256,11 +269,11 @@ impl LocalChatLLMChat {
     }
 
     info!(
-      "[Chat Plugin] setup chat plugin: {:?}, params: {:?}",
+      "[AI Plugin] setup chat plugin: {:?}, params: {:?}",
       plugin_id, params
     );
     let plugin = self.plugin_manager.init_plugin(plugin_id, params).await?;
-    info!("[Chat Plugin] {} setup success", plugin);
+    info!("[AI Plugin] {} setup success", plugin);
     self.plugin_config.write().await.replace(config);
     Ok(())
   }
@@ -280,7 +293,7 @@ impl LocalChatLLMChat {
     if !is_loading {
       return Ok(());
     }
-    info!("[Chat Plugin] wait for chat plugin to be ready");
+    info!("[AI Plugin] wait for chat plugin to be ready");
     let mut rx = self.subscribe_running_state();
     let timeout_duration = Duration::from_secs(30);
     let result = timeout(timeout_duration, async {
@@ -294,7 +307,7 @@ impl LocalChatLLMChat {
 
     match result {
       Ok(_) => {
-        trace!("[Chat Plugin] is ready");
+        trace!("[AI Plugin] is ready");
         Ok(())
       },
       Err(_) => Err(anyhow!("Timeout while waiting for chat plugin to be ready")),
