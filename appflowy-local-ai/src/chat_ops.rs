@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use anyhow::anyhow;
 use appflowy_plugin::core::parser::{DefaultResponseParser, ResponseParser};
 use appflowy_plugin::core::plugin::Plugin;
@@ -6,6 +5,7 @@ use appflowy_plugin::error::{PluginError, RemoteError};
 use bytes::Bytes;
 use serde_json::json;
 use serde_json::Value as JsonValue;
+use std::fmt::Debug;
 use std::sync::Weak;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::instrument;
