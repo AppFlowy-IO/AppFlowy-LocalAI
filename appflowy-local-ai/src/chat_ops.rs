@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use anyhow::anyhow;
 use appflowy_plugin::core::parser::{DefaultResponseParser, ResponseParser};
 use appflowy_plugin::core::plugin::Plugin;
@@ -104,13 +105,13 @@ impl ChatPluginOperation {
   }
 
   #[instrument(level = "debug", skip(self), err)]
-  pub async fn complete_text(
+  pub async fn complete_text<T: Into<CompleteTextType> + Debug>(
     &self,
     message: &str,
-    complete_type: CompleteTextType,
+    complete_type: T,
   ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
     let plugin = self.get_plugin()?;
-    let complete_type = complete_type as u8;
+    let complete_type = complete_type.into() as u8;
     let params = json!({
         "method": "complete_text",
         "params": { "text": message, "type": complete_type }
