@@ -8,6 +8,7 @@ use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
@@ -179,10 +180,10 @@ impl LocalChatLLMChat {
     Ok(())
   }
 
-  pub async fn complete_text(
+  pub async fn complete_text<T: Into<CompleteTextType> + Debug>(
     &self,
     message: &str,
-    complete_type: CompleteTextType,
+    complete_type: T,
   ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
     trace!("[AI Plugin]  complete text: {}", message);
     self.wait_until_plugin_ready().await?;
