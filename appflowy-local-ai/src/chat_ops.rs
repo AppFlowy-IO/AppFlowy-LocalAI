@@ -156,7 +156,11 @@ impl ResponseParser for ChatRelatedQuestionsResponseParser {
       .map(|array| {
         array
           .iter()
-          .filter_map(|item| item.get("content").map(|s| s.to_string()))
+          .flat_map(|item| {
+            item
+              .get("content")
+              .map(|s| s.as_str().map(|s| s.to_string()))?
+          })
           .collect()
       })
       .ok_or(RemoteError::ParseResponse(json))
