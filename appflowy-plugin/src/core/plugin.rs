@@ -302,18 +302,13 @@ pub fn handle_macos_security_check(plugin_info: &PluginInfo) {
       // The presence of this attribute can cause the system to display a permission error, such as:
       // code: 1, kind: PermissionDenied, message: "Operation not permitted"
       for attr in list {
-        if attr == "com.apple.quarantine" {
-          has_quarantine = true;
-        }
+        trace!("{:?}: xattr: {:?}", plugin_info.exec_path, attr);
         if attr == "com.apple.lastuseddate#PS" {
           has_lastuseddate = true;
         }
-        if cfg!(debug_assertions) {
-          trace!("{:?}: xattr: {:?}", plugin_info.exec_path, attr);
-        }
       }
 
-      if has_quarantine && !has_lastuseddate {
+      if !has_lastuseddate {
         open_manually = true;
       }
     },
