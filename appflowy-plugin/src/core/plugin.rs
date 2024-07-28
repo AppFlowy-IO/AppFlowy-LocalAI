@@ -202,20 +202,14 @@ pub(crate) async fn start_plugin_process(
   running_state: RunningStateSender,
 ) -> Result<(), anyhow::Error> {
   trace!("start plugin process: {:?}, {:?}", id, plugin_info);
-  #[cfg(unix)]
-  {
-    trace!("ensure executable: {:?}", plugin_info.exec_path);
-    ensure_executable(&plugin_info.exec_path).await?;
-  }
-
   let (tx, ret) = tokio::sync::oneshot::channel();
   let spawn_result = thread::Builder::new()
     .name(format!("<{}> core host thread", &plugin_info.name))
     .spawn(move || {
       info!("Load {} plugin", &plugin_info.name);
 
-      #[cfg(target_os = "macos")]
-      handle_macos_security_check(&plugin_info);
+      // #[cfg(target_os = "macos")]
+      // handle_macos_security_check(&plugin_info);
 
       let child = std::process::Command::new(&plugin_info.exec_path)
         .stdin(Stdio::piped())
@@ -275,6 +269,7 @@ pub(crate) async fn start_plugin_process(
   Ok(())
 }
 
+#[allow(dead_code)]
 #[cfg(unix)]
 async fn ensure_executable(exec_path: &std::path::Path) -> Result<(), anyhow::Error> {
   use std::os::unix::fs::PermissionsExt;
@@ -286,13 +281,13 @@ async fn ensure_executable(exec_path: &std::path::Path) -> Result<(), anyhow::Er
   Ok(())
 }
 
+#[allow(dead_code)]
 #[cfg(target_os = "macos")]
 pub fn handle_macos_security_check(plugin_info: &PluginInfo) {
   trace!("macos security check: {:?}", plugin_info.exec_path);
   let mut open_manually = false;
   match xattr::list(&plugin_info.exec_path) {
     Ok(list) => {
-      let mut has_quarantine = false;
       let mut has_lastuseddate = false;
 
       // https://eclecticlight.co/2023/03/16/what-is-macos-ventura-doing-tracking-provenance/

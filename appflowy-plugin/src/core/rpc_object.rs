@@ -46,7 +46,7 @@ impl RpcObject {
   /// - `Ok(Ok(ResponsePayload::Streaming(data)))`: If the response contains streaming data of type "streaming".
   /// - `Ok(Ok(ResponsePayload::StreamEnd(json!({}))))`: If the response contains streaming data of type "end".
   /// - `Err(String)`: If any validation or parsing errors occur.
-  ///.
+  ///
   pub fn into_response(mut self) -> Result<Response, String> {
     // Ensure 'id' field is present
     self

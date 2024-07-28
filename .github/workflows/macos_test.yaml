@@ -28,14 +28,15 @@ jobs:
           aws s3 cp s3://appflowy-local-ai-test/macos-latest/AppFlowyLLM_debug.zip AppFlowyLLM_macos-latest_debug.zip
           unzip AppFlowyLLM_macos-latest_debug.zip -d AppFlowyLLM
           cd AppFlowyLLM
+          ls
         shell: bash
 
       - name: Prepare env
         run: |
           ls
           ABS_PATH=$(pwd)
-          chat_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_ai_plugin
-          embedding_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_embedding_plugin
+          chat_bin_path=$ABS_PATH/AppFlowyLLM/AppFlowyLLM.app/Contents/MacOS/appflowy_ai_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyLLM/AppFlowyLLM.app/Contents/MacOS/appflowy_embedding_plugin
           
           cp dev.env .env
           sed -i '' 's|RUST_LOG=.*|RUST_LOG=trace|' .env
