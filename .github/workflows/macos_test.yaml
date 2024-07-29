@@ -25,9 +25,9 @@ jobs:
 
       - name: Download artifact from S3
         run: |
-          aws s3 cp s3://appflowy-local-ai-test/macos-latest/AppFlowyLLM_debug.zip AppFlowyLLM_macos-latest_debug.zip
-          unzip AppFlowyLLM_macos-latest_debug.zip -d AppFlowyLLM
-          cd AppFlowyLLM
+          aws s3 cp s3://appflowy-local-ai-test/macos-latest/AppFlowyAI_debug.zip AppFlowyAI_macos-latest_debug.zip
+          unzip AppFlowyAI_macos-latest_debug.zip -d AppFlowyAI
+          cd AppFlowyAI
           ls
         shell: bash
 
@@ -35,8 +35,8 @@ jobs:
         run: |
           ls
           ABS_PATH=$(pwd)
-          chat_bin_path=$ABS_PATH/AppFlowyLLM/AppFlowyLLM.app/Contents/MacOS/appflowy_ai_plugin
-          embedding_bin_path=$ABS_PATH/AppFlowyLLM/AppFlowyLLM.app/Contents/MacOS/appflowy_embedding_plugin
+          chat_bin_path=$ABS_PATH/AppFlowyAI/AppFlowyAI.app/Contents/MacOS/appflowy_ai_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyAI/AppFlowyAI.app/Contents/MacOS/appflowy_embedding_plugin
           
           cp dev.env .env
           sed -i '' 's|RUST_LOG=.*|RUST_LOG=trace|' .env
@@ -58,5 +58,5 @@ jobs:
 
       - name: Cleanup downloaded artifacts
         run: |
-          rm -rf AppFlowyLLM_macos-latest_debug.zip
-          rm -rf AppFlowyLLM
+          rm -rf AppFlowyAI_macos-latest_debug.zip
+          rm -rf AppFlowyAI

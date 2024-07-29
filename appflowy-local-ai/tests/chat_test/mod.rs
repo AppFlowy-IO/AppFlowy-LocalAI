@@ -162,13 +162,13 @@ async fn load_aws_chat_bin_test() {
 }
 
 async fn chat_bin_path() -> PathBuf {
-  let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyLLM_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=p8evDjdypl58nbGK8qJ%2F1l0Zs%2FU%3D&Expires=1721044152";
+  let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyAI_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=p8evDjdypl58nbGK8qJ%2F1l0Zs%2FU%3D&Expires=1721044152";
   // let url = "";
   let temp_dir = temp_dir().join("download_plugin");
   if !temp_dir.exists() {
     std::fs::create_dir(&temp_dir).unwrap();
   }
-  let path = download_plugin(url, &temp_dir, "AppFlowyLLM.zip", None, None, None)
+  let path = download_plugin(url, &temp_dir, "AppFlowyAI.zip", None, None, None)
     .await
     .unwrap();
   println!("Downloaded plugin to {:?}", path);

@@ -35,9 +35,9 @@ jobs:
       - name: Download artifact from S3 (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
         run: |
-          aws s3 cp s3://appflowy-local-ai-test/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
-          unzip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip -d AppFlowyLLM
-          cd AppFlowyLLM
+          aws s3 cp s3://appflowy-local-ai-test/${{ matrix.os }}/AppFlowyAI_${{ matrix.build_type }}.zip AppFlowyAI_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          unzip AppFlowyAI_${{ matrix.os }}_${{ matrix.build_type }}.zip -d AppFlowyAI
+          cd AppFlowyAI
           pwd
           ls
         shell: bash
@@ -45,9 +45,9 @@ jobs:
       - name: Download artifact from S3 (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
         run: |
-          aws s3 cp s3://appflowy-local-ai-test/${{ matrix.os }}/AppFlowyLLM_${{ matrix.build_type }}.zip AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
-          Expand-Archive -Path AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip -DestinationPath AppFlowyLLM
-          cd AppFlowyLLM
+          aws s3 cp s3://appflowy-local-ai-test/${{ matrix.os }}/AppFlowyAI_${{ matrix.build_type }}.zip AppFlowyAI_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          Expand-Archive -Path AppFlowyAI_${{ matrix.os }}_${{ matrix.build_type }}.zip -DestinationPath AppFlowyAI
+          cd AppFlowyAI
           dir
         shell: powershell
 
@@ -70,8 +70,8 @@ jobs:
         run: |
           ls
           ABS_PATH=$(pwd)
-          chat_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_ai_plugin
-          embedding_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_embedding_plugin
+          chat_bin_path=$ABS_PATH/AppFlowyAI/appflowy_ai_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyAI/appflowy_embedding_plugin
           
           cp dev.env .env
           sed -i '' 's|RUST_LOG=.*|RUST_LOG=trace|' .env
@@ -90,8 +90,8 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           ABS_PATH=$(pwd)
-          chat_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_ai_plugin
-          embedding_bin_path=$ABS_PATH/AppFlowyLLM/appflowy_embedding_plugin
+          chat_bin_path=$ABS_PATH/AppFlowyAI/appflowy_ai_plugin
+          embedding_bin_path=$ABS_PATH/AppFlowyAI/appflowy_embedding_plugin
           
           cp dev.env .env
           sed -i 's|RUST_LOG=.*|RUST_LOG=trace|' .env
@@ -112,8 +112,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           try {
             $ABS_PATH = $PWD.Path
-            $chat_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'appflowy_ai_plugin.exe'
-            $embedding_bin_path = Join-Path $ABS_PATH 'AppFlowyLLM' 'appflowy_embedding_plugin.exe'
+            $chat_bin_path = Join-Path $ABS_PATH 'AppFlowyAI' 'appflowy_ai_plugin.exe'
+            $embedding_bin_path = Join-Path $ABS_PATH 'AppFlowyAI' 'appflowy_embedding_plugin.exe'
 
             Copy-Item -Path 'dev.env' -Destination '.env' -Force
 
@@ -168,16 +168,16 @@ jobs:
       - name: Cleanup downloaded artifacts (Unix)
         if: ${{ matrix.os != 'windows-latest' }}
         run: |
-          rm -rf AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
-          rm -rf AppFlowyLLM
+          rm -rf AppFlowyAI_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          rm -rf AppFlowyAI
           rm -rf tinyllama.gguf
           rm -rf all-MiniLM-L12-v
 
       - name: Cleanup downloaded artifacts (Windows)
         if: ${{ matrix.os == 'windows-latest' }}
         run: |
-          Remove-Item -Recurse -Force AppFlowyLLM_${{ matrix.os }}_${{ matrix.build_type }}.zip
-          Remove-Item -Recurse -Force AppFlowyLLM
+          Remove-Item -Recurse -Force AppFlowyAI_${{ matrix.os }}_${{ matrix.build_type }}.zip
+          Remove-Item -Recurse -Force AppFlowyAI
           Remove-Item -Recurse -Force tinyllama.gguf
           Remove-Item -Recurse -Force all-MiniLM-L12-v2.F16.gguf
           dir
