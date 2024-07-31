@@ -1,4 +1,6 @@
-use crate::chat_ops::{ChatPluginOperation, CompleteTextType};
+use crate::ai_ops::{
+  AIPluginOperation, CompleteTextType, LocalAITranslateRowData, LocalAITranslateRowResponse,
+};
 use anyhow::{anyhow, Result};
 use appflowy_plugin::core::plugin::{
   Plugin, PluginInfo, RunningState, RunningStateReceiver, RunningStateSender,
@@ -8,6 +10,7 @@ use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, Weak};
@@ -34,7 +37,7 @@ impl LocalLLMSetting {
   }
 }
 
-pub struct LocalChatLLMChat {
+pub struct AppFlowyLocalAI {
   plugin_manager: Arc<PluginManager>,
   plugin_config: RwLock<Option<AIPluginConfig>>,
   running_state: RunningStateSender,
@@ -43,7 +46,7 @@ pub struct LocalChatLLMChat {
   running_state_rx: RunningStateReceiver,
 }
 
-impl LocalChatLLMChat {
+impl AppFlowyLocalAI {
   pub fn new(plugin_manager: Arc<PluginManager>) -> Self {
     let (running_state, rx) = tokio::sync::watch::channel(RunningState::Connecting);
     Self {
@@ -67,8 +70,8 @@ impl LocalChatLLMChat {
     trace!("[AI Plugin] create chat: {}", chat_id);
     self.wait_until_plugin_ready().await?;
 
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     operation.create_chat(chat_id, true).await?;
     Ok(())
   }
@@ -84,8 +87,8 @@ impl LocalChatLLMChat {
   /// A `Result<()>` indicating success or failure.
   pub async fn close_chat(&self, chat_id: &str) -> Result<()> {
     trace!("[AI Plugin] close chat: {}", chat_id);
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     operation.close_chat(chat_id).await?;
     Ok(())
   }
@@ -115,16 +118,16 @@ impl LocalChatLLMChat {
   ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
     trace!("[AI Plugin] ask question: {}", message);
     self.wait_until_plugin_ready().await?;
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     let stream = operation.stream_message(chat_id, message, true).await?;
     Ok(stream)
   }
 
   pub async fn get_related_question(&self, chat_id: &str) -> Result<Vec<String>, PluginError> {
     self.wait_until_plugin_ready().await?;
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     let values = operation.get_related_questions(chat_id).await?;
     Ok(values)
   }
@@ -143,8 +146,8 @@ impl LocalChatLLMChat {
     )))?;
 
     self.wait_until_plugin_ready().await?;
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     trace!("[AI Plugin] indexing file: {}", file_path);
     operation.index_file(chat_id, file_path).await?;
     Ok(())
@@ -162,8 +165,8 @@ impl LocalChatLLMChat {
   /// A `Result<String>` containing the generated answer.
   pub async fn ask_question(&self, chat_id: &str, message: &str) -> Result<String, PluginError> {
     self.wait_until_plugin_ready().await?;
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     let answer = operation.send_message(chat_id, message, true).await?;
     Ok(answer)
   }
@@ -187,10 +190,34 @@ impl LocalChatLLMChat {
   ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
     trace!("[AI Plugin]  complete text: {}", message);
     self.wait_until_plugin_ready().await?;
-    let plugin = self.get_chat_plugin().await?;
-    let operation = ChatPluginOperation::new(plugin);
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
     let stream = operation.complete_text(message, complete_type).await?;
     Ok(stream)
+  }
+
+  pub async fn summary_database_row(
+    &self,
+    row: HashMap<String, String>,
+  ) -> Result<String, PluginError> {
+    trace!("[AI Plugin] summary database row: {:?}", row);
+    self.wait_until_plugin_ready().await?;
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
+    let text = operation.summary_row(row).await?;
+    Ok(text)
+  }
+
+  pub async fn translate_database_row(
+    &self,
+    row: LocalAITranslateRowData,
+  ) -> Result<LocalAITranslateRowResponse, PluginError> {
+    trace!("[AI Plugin] summary database row: {:?}", row);
+    self.wait_until_plugin_ready().await?;
+    let plugin = self.get_ai_plugin().await?;
+    let operation = AIPluginOperation::new(plugin);
+    let resp = operation.translate_row(row).await?;
+    Ok(resp)
   }
 
   #[instrument(skip_all, err)]
@@ -320,7 +347,7 @@ impl LocalChatLLMChat {
   /// # Returns
   ///
   /// A `Result<Weak<Plugin>>` containing a weak reference to the plugin.
-  pub async fn get_chat_plugin(&self) -> Result<Weak<Plugin>, PluginError> {
+  pub async fn get_ai_plugin(&self) -> Result<Weak<Plugin>, PluginError> {
     let plugin_id = self
       .running_state
       .borrow()

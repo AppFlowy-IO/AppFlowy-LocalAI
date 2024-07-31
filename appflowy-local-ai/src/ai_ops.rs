@@ -3,20 +3,22 @@ use appflowy_plugin::core::parser::{DefaultResponseParser, ResponseParser};
 use appflowy_plugin::core::plugin::Plugin;
 use appflowy_plugin::error::{PluginError, RemoteError};
 use bytes::Bytes;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value as JsonValue;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Weak;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::instrument;
 
-pub struct ChatPluginOperation {
+pub struct AIPluginOperation {
   plugin: Weak<Plugin>,
 }
 
-impl ChatPluginOperation {
+impl AIPluginOperation {
   pub fn new(plugin: Weak<Plugin>) -> Self {
-    ChatPluginOperation { plugin }
+    AIPluginOperation { plugin }
   }
 
   fn get_plugin(&self) -> Result<std::sync::Arc<Plugin>, PluginError> {
@@ -118,6 +120,43 @@ impl ChatPluginOperation {
     });
     plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
+
+  #[instrument(level = "debug", skip(self), err)]
+  pub async fn summary_row(&self, row: HashMap<String, String>) -> Result<String, PluginError> {
+    let params = json!({"params": row });
+    self
+      .send_request::<DatabaseSummaryResponseParser>("database_summary", params)
+      .await
+  }
+
+  #[instrument(level = "debug", skip(self), err)]
+  pub async fn translate_row(
+    &self,
+    data: LocalAITranslateRowData,
+  ) -> Result<LocalAITranslateRowResponse, PluginError> {
+    let params = json!({"params": data });
+    self
+      .send_request::<DatabaseTranslateResponseParser>("database_translate", params)
+      .await
+  }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LocalAITranslateRowData {
+  pub cells: Vec<LocalAITranslateItem>,
+  pub language: String,
+  pub include_header: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LocalAITranslateItem {
+  pub title: String,
+  pub content: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct LocalAITranslateRowResponse {
+  pub items: Vec<HashMap<String, String>>,
 }
 
 pub struct ChatResponseParser;
@@ -187,5 +226,30 @@ impl From<u8> for CompleteTextType {
       5 => CompleteTextType::AskAI,
       _ => CompleteTextType::ImproveWriting,
     }
+  }
+}
+
+pub struct DatabaseSummaryResponseParser;
+impl ResponseParser for DatabaseSummaryResponseParser {
+  type ValueType = String;
+
+  fn parse_json(json: JsonValue) -> Result<Self::ValueType, RemoteError> {
+    json
+      .get("data")
+      .and_then(|data| data.as_str())
+      .map(|s| s.to_string())
+      .ok_or(RemoteError::ParseResponse(json))
+  }
+}
+
+pub struct DatabaseTranslateResponseParser;
+impl ResponseParser for DatabaseTranslateResponseParser {
+  type ValueType = LocalAITranslateRowResponse;
+
+  fn parse_json(json: JsonValue) -> Result<Self::ValueType, RemoteError> {
+    json
+      .get("data")
+      .and_then(|data| LocalAITranslateRowResponse::deserialize(data).ok())
+      .ok_or(RemoteError::ParseResponse(json))
   }
 }

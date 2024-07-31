@@ -1,8 +1,9 @@
 use crate::util::{get_asset_path, setup_log, LocalAITest};
-use appflowy_local_ai::chat_plugin::{AIPluginConfig, LocalChatLLMChat};
+use appflowy_local_ai::chat_plugin::{AIPluginConfig, AppFlowyLocalAI};
 use appflowy_local_ai::plugin_request::download_plugin;
+use std::collections::HashMap;
 
-use appflowy_local_ai::chat_ops::CompleteTextType;
+use appflowy_local_ai::ai_ops::{CompleteTextType, LocalAITranslateItem, LocalAITranslateRowData};
 use appflowy_plugin::manager::PluginManager;
 use std::env::temp_dir;
 use std::path::PathBuf;
@@ -33,8 +34,8 @@ async fn ci_chat_stream_test() {
   test.init_embedding_plugin().await;
 
   let chat_plugin = test
-    .chat_manager
-    .get_chat_plugin()
+    .local_ai
+    .get_ai_plugin()
     .await
     .unwrap()
     .upgrade()
@@ -60,11 +61,7 @@ async fn ci_chat_stream_test() {
   let score = test.calculate_similarity(&answer, expected).await;
   assert!(score > 0.7, "score: {}", score);
 
-  let questions = test
-    .chat_manager
-    .get_related_question(&chat_id)
-    .await
-    .unwrap();
+  let questions = test.local_ai.get_related_question(&chat_id).await.unwrap();
   assert_eq!(questions.len(), 3);
   println!("related questions: {:?}", questions)
 }
@@ -76,8 +73,8 @@ async fn ci_completion_text_test() {
   test.init_embedding_plugin().await;
 
   let chat_plugin = test
-    .chat_manager
-    .get_chat_plugin()
+    .local_ai
+    .get_ai_plugin()
     .await
     .unwrap()
     .upgrade()
@@ -90,7 +87,7 @@ async fn ci_completion_text_test() {
   });
 
   let mut resp = test
-    .chat_manager
+    .local_ai
     .complete_text("tell me the book, atomic habits", CompleteTextType::AskAI)
     .await
     .unwrap();
@@ -114,10 +111,10 @@ async fn ci_chat_with_pdf() {
   test.init_embedding_plugin().await;
   let chat_id = uuid::Uuid::new_v4().to_string();
   let pdf = get_asset_path("AppFlowy_Values.pdf");
-  test.chat_manager.index_file(&chat_id, pdf).await.unwrap();
+  test.local_ai.index_file(&chat_id, pdf).await.unwrap();
 
   let resp = test
-    .chat_manager
+    .local_ai
     .ask_question(
       &chat_id,
       // "what is the meaning of Aim High and Iterate in AppFlowy?",
@@ -140,10 +137,73 @@ async fn ci_chat_with_pdf() {
 }
 
 #[tokio::test]
+async fn ci_database_row_test() {
+  let test = LocalAITest::new().unwrap();
+  test.init_chat_plugin().await;
+  test.init_embedding_plugin().await;
+
+  // summary
+  let mut params = HashMap::new();
+  params.insert("book name".to_string(), "Atomic Habits".to_string());
+  params.insert("finish reading at".to_string(), "2023-02-10".to_string());
+  params.insert(
+    "notes".to_string(),
+    "An atomic habit is a regular practice or routine that is not
+           only small and easy to do but is also the source of incredible power; a
+           component of the system of compound growth. Bad habits repeat themselves
+           again and again not because you don’t want to change, but because you
+           have the wrong system for change. Changes that seem small and
+           unimportant at first will compound into remarkable results if you’re
+           willing to stick with them for years"
+      .to_string(),
+  );
+  let resp = test.local_ai.summary_database_row(params).await.unwrap();
+  let expected = r#"
+  Finished reading "Atomic Habits" on 2023-02-10. The book emphasizes that
+  small, regular practices can lead to significant growth over time. Bad
+  habits persist due to flawed systems, and minor, consistent changes can
+  yield impressive results when maintained over the long term.
+  "#;
+  let score = test.calculate_similarity(&resp, expected).await;
+  assert!(score > 0.8, "score: {}", score);
+
+  // translate
+  let data = LocalAITranslateRowData {
+    cells: vec![
+      LocalAITranslateItem {
+        title: "book name".to_string(),
+        content: "Atomic Habits".to_string(),
+      },
+      LocalAITranslateItem {
+        title: "score".to_string(),
+        content: "8".to_string(),
+      },
+      LocalAITranslateItem {
+        title: "finish reading at".to_string(),
+        content: "2023-02-10".to_string(),
+      },
+    ],
+    language: "chinese".to_string(),
+    include_header: false,
+  };
+  let resp = test.local_ai.translate_database_row(data).await.unwrap();
+  let resp_str: String = resp
+    .items
+    .into_iter()
+    .flat_map(|map| map.into_iter().map(|(k, v)| format!("{}:{}", k, v)))
+    .collect::<Vec<String>>()
+    .join(",");
+
+  let expected = r#"书名:原子习惯,评分:8,完成阅读日期:2023-02-10"#;
+  let score = test.calculate_similarity(&resp_str, expected).await;
+  assert!(score > 0.8, "score: {}, actural: {}", score, resp_str);
+}
+
+#[tokio::test]
 async fn load_aws_chat_bin_test() {
   setup_log();
   let plugin_manager = PluginManager::new();
-  let llm_chat = LocalChatLLMChat::new(Arc::new(plugin_manager));
+  let llm_chat = AppFlowyLocalAI::new(Arc::new(plugin_manager));
 
   let chat_bin = chat_bin_path().await;
   // clear_extended_attributes(&chat_bin).await.unwrap();
@@ -163,7 +223,6 @@ async fn load_aws_chat_bin_test() {
 
 async fn chat_bin_path() -> PathBuf {
   let url = "https://appflowy-local-ai.s3.amazonaws.com/macos-latest/AppFlowyAI_release.zip?AWSAccessKeyId=AKIAVQA4ULIFKSXHI6PI&Signature=p8evDjdypl58nbGK8qJ%2F1l0Zs%2FU%3D&Expires=1721044152";
-  // let url = "";
   let temp_dir = temp_dir().join("download_plugin");
   if !temp_dir.exists() {
     std::fs::create_dir(&temp_dir).unwrap();

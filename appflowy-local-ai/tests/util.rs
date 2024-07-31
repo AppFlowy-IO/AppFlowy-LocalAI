@@ -1,5 +1,5 @@
 use anyhow::Result;
-use appflowy_local_ai::chat_plugin::{AIPluginConfig, LocalChatLLMChat};
+use appflowy_local_ai::chat_plugin::{AIPluginConfig, AppFlowyLocalAI};
 use appflowy_local_ai::embedding_plugin::{EmbeddingPluginConfig, LocalEmbedding};
 use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
@@ -15,7 +15,7 @@ use tracing_subscriber::EnvFilter;
 
 pub struct LocalAITest {
   config: LocalAIConfiguration,
-  pub chat_manager: LocalChatLLMChat,
+  pub local_ai: AppFlowyLocalAI,
   pub embedding_manager: LocalEmbedding,
 }
 
@@ -23,11 +23,11 @@ impl LocalAITest {
   pub fn new() -> Result<Self> {
     let config = LocalAIConfiguration::new()?;
     let sidecar = Arc::new(PluginManager::new());
-    let chat_manager = LocalChatLLMChat::new(sidecar.clone());
+    let chat_manager = AppFlowyLocalAI::new(sidecar.clone());
     let embedding_manager = LocalEmbedding::new(sidecar);
     Ok(Self {
       config,
-      chat_manager,
+      local_ai: chat_manager,
       embedding_manager,
     })
   }
@@ -49,7 +49,7 @@ impl LocalAITest {
       .set_rag_enabled(&self.config.embedding_model_absolute_path(), &persist_dir)
       .unwrap();
 
-    self.chat_manager.init_chat_plugin(config).await.unwrap();
+    self.local_ai.init_chat_plugin(config).await.unwrap();
   }
 
   pub async fn init_embedding_plugin(&self) {
@@ -68,11 +68,7 @@ impl LocalAITest {
   }
 
   pub async fn send_chat_message(&self, chat_id: &str, message: &str) -> String {
-    self
-      .chat_manager
-      .ask_question(chat_id, message)
-      .await
-      .unwrap()
+    self.local_ai.ask_question(chat_id, message).await.unwrap()
   }
 
   pub async fn stream_chat_message(
@@ -81,7 +77,7 @@ impl LocalAITest {
     message: &str,
   ) -> ReceiverStream<Result<Bytes, PluginError>> {
     self
-      .chat_manager
+      .local_ai
       .stream_question(chat_id, message)
       .await
       .unwrap()
