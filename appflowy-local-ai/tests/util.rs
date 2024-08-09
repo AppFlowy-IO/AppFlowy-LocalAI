@@ -79,7 +79,7 @@ impl LocalAITest {
   ) -> ReceiverStream<Result<Bytes, PluginError>> {
     self
       .local_ai
-      .stream_question(chat_id, message, json!({}))
+      .stream_question(chat_id, message, json!([]))
       .await
       .unwrap()
   }
