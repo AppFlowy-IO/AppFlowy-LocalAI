@@ -164,11 +164,7 @@ impl AppFlowyLocalAI {
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_ai_plugin().await?;
     let operation = AIPluginOperation::new(plugin);
-    trace!(
-      "[AI Plugin] indexing file: {:?}, content: {:?}",
-      file_path_str,
-      file_content
-    );
+
     operation
       .index_file(chat_id, file_path_str, file_content, metadata)
       .await?;

@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Weak;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::instrument;
+use tracing::{instrument, trace};
 
 pub struct AIPluginOperation {
   plugin: Weak<Plugin>,
@@ -96,6 +96,7 @@ impl AIPluginOperation {
       .await
   }
 
+  #[instrument(level = "debug", skip_all, err)]
   pub async fn index_file(
     &self,
     chat_id: &str,
@@ -121,6 +122,7 @@ impl AIPluginOperation {
       params["file_content"] = json!(content);
     }
 
+    trace!("[AI Plugin] indexing file: {:?}", params);
     self
       .send_request::<DefaultResponseParser>(
         "index_file",
