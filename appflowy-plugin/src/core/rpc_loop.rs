@@ -234,7 +234,7 @@ impl<W: Write + Send> RpcLoop<W> {
           },
           Ok(Call::Message(_msg)) => {
             #[cfg(feature = "verbose")]
-            trace!("[RPC {}]: {}", _plugin_name, _msg);
+            trace!("[RPC {}] logging: {}", _plugin_name, _msg);
           },
         }
       }
