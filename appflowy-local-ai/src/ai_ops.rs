@@ -76,13 +76,13 @@ impl AIPluginOperation {
     &self,
     chat_id: &str,
     message: &str,
-    rag_enabled: bool,
+    metadata: serde_json::Value,
   ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
     let plugin = self.get_plugin()?;
     let params = json!({
         "chat_id": chat_id,
         "method": "stream_answer",
-        "params": { "content": message, "rag_enabled": rag_enabled }
+        "params": { "content": message, "metadata": metadata }
     });
     plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
