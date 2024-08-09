@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Weak;
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::instrument;
+use tracing::{instrument, trace};
 
 pub struct AIPluginOperation {
   plugin: Weak<Plugin>,
@@ -42,11 +42,11 @@ impl AIPluginOperation {
     plugin.async_request::<T>("handle", &request).await
   }
 
-  pub async fn create_chat(&self, chat_id: &str, rag_enabled: bool) -> Result<(), PluginError> {
+  pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
     self
       .send_request::<DefaultResponseParser>(
         "create_chat",
-        json!({ "chat_id": chat_id, "rag_enabled": rag_enabled }),
+        json!({ "chat_id": chat_id, "top_k": 2}),
       )
       .await
   }
@@ -76,13 +76,13 @@ impl AIPluginOperation {
     &self,
     chat_id: &str,
     message: &str,
-    rag_enabled: bool,
+    metadata: serde_json::Value,
   ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
     let plugin = self.get_plugin()?;
     let params = json!({
         "chat_id": chat_id,
         "method": "stream_answer",
-        "params": { "content": message, "rag_enabled": rag_enabled }
+        "params": { "content": message, "metadata": metadata }
     });
     plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
@@ -96,8 +96,33 @@ impl AIPluginOperation {
       .await
   }
 
-  pub async fn index_file(&self, chat_id: &str, file_path: &str) -> Result<(), PluginError> {
-    let params = json!({ "file_path": file_path, "metadatas": [{"chat_id": chat_id}] });
+  #[instrument(level = "debug", skip_all, err)]
+  pub async fn index_file(
+    &self,
+    chat_id: &str,
+    file_path: Option<String>,
+    file_content: Option<String>,
+    metadata: Option<HashMap<String, serde_json::Value>>,
+  ) -> Result<(), PluginError> {
+    if file_path.is_none() && file_content.is_none() {
+      return Err(PluginError::Internal(anyhow!(
+        "file_path or content must be provided"
+      )));
+    }
+
+    let mut metadata = metadata.unwrap_or_default();
+    metadata.insert("chat_id".to_string(), json!(chat_id));
+    let mut params = json!({ "metadata": [metadata] });
+
+    if let Some(file_path) = file_path {
+      params["file_path"] = json!(file_path);
+    }
+
+    if let Some(content) = file_content {
+      params["file_content"] = json!(content);
+    }
+
+    trace!("[AI Plugin] indexing file: {:?}", params);
     self
       .send_request::<DefaultResponseParser>(
         "index_file",
