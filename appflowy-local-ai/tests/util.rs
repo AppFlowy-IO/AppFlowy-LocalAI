@@ -4,6 +4,7 @@ use appflowy_local_ai::embedding_plugin::{EmbeddingPluginConfig, LocalEmbedding}
 use appflowy_plugin::error::PluginError;
 use appflowy_plugin::manager::PluginManager;
 use bytes::Bytes;
+use serde_json::json;
 use simsimd::SpatialSimilarity;
 use std::f64;
 use std::path::{Path, PathBuf};
@@ -78,7 +79,7 @@ impl LocalAITest {
   ) -> ReceiverStream<Result<Bytes, PluginError>> {
     self
       .local_ai
-      .stream_question(chat_id, message)
+      .stream_question(chat_id, message, json!({}))
       .await
       .unwrap()
   }

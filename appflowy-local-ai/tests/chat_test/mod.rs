@@ -111,7 +111,11 @@ async fn ci_chat_with_pdf() {
   test.init_embedding_plugin().await;
   let chat_id = uuid::Uuid::new_v4().to_string();
   let pdf = get_asset_path("AppFlowy_Values.pdf");
-  test.local_ai.index_file(&chat_id, pdf).await.unwrap();
+  test
+    .local_ai
+    .index_file(&chat_id, Some(pdf), None)
+    .await
+    .unwrap();
 
   let resp = test
     .local_ai

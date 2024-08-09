@@ -96,8 +96,27 @@ impl AIPluginOperation {
       .await
   }
 
-  pub async fn index_file(&self, chat_id: &str, file_path: &str) -> Result<(), PluginError> {
-    let params = json!({ "file_path": file_path, "metadatas": [{"chat_id": chat_id}] });
+  pub async fn index_file(
+    &self,
+    chat_id: &str,
+    file_path: Option<String>,
+    file_content: Option<String>,
+  ) -> Result<(), PluginError> {
+    if file_path.is_none() && file_content.is_none() {
+      return Err(PluginError::Internal(anyhow!(
+        "file_path or content must be provided"
+      )));
+    }
+
+    let mut params = json!({ "metadata": [{"chat_id": chat_id}] });
+    if let Some(file_path) = file_path {
+      params["file_path"] = json!(file_path);
+    }
+
+    if let Some(content) = file_content {
+      params["file_content"] = json!(content);
+    }
+
     self
       .send_request::<DefaultResponseParser>(
         "index_file",

@@ -10,6 +10,7 @@ use appflowy_plugin::manager::PluginManager;
 use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -115,12 +116,13 @@ impl AppFlowyLocalAI {
     &self,
     chat_id: &str,
     message: &str,
+    metadata: serde_json::Value,
   ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
     trace!("[AI Plugin] ask question: {}", message);
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_ai_plugin().await?;
     let operation = AIPluginOperation::new(plugin);
-    let stream = operation.stream_message(chat_id, message, true).await?;
+    let stream = operation.stream_message(chat_id, message, metadata).await?;
     Ok(stream)
   }
 
@@ -132,24 +134,39 @@ impl AppFlowyLocalAI {
     Ok(values)
   }
 
-  pub async fn index_file(&self, chat_id: &str, file_path: PathBuf) -> Result<(), PluginError> {
-    if !file_path.exists() {
-      return Err(PluginError::Io(io::Error::new(
-        io::ErrorKind::NotFound,
-        "file not found",
-      )));
-    }
+  pub async fn index_file(
+    &self,
+    chat_id: &str,
+    file_path: Option<PathBuf>,
+    file_content: Option<String>,
+  ) -> Result<(), PluginError> {
+    let mut file_path_str = None;
+    if let Some(file_path) = file_path {
+      if !file_path.exists() {
+        return Err(PluginError::Io(io::Error::new(
+          io::ErrorKind::NotFound,
+          "file not found",
+        )));
+      }
 
-    let file_path = file_path.to_str().ok_or(PluginError::Io(io::Error::new(
-      io::ErrorKind::NotFound,
-      "file path invalid",
-    )))?;
+      file_path_str = Some(
+        file_path
+          .to_str()
+          .ok_or(PluginError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            "file path invalid",
+          )))?
+          .to_string(),
+      );
+    }
 
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_ai_plugin().await?;
     let operation = AIPluginOperation::new(plugin);
-    trace!("[AI Plugin] indexing file: {}", file_path);
-    operation.index_file(chat_id, file_path).await?;
+    trace!("[AI Plugin] indexing file: {:?}", file_path_str);
+    operation
+      .index_file(chat_id, file_path_str, file_content)
+      .await?;
     Ok(())
   }
 
