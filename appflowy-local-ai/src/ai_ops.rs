@@ -42,11 +42,11 @@ impl AIPluginOperation {
     plugin.async_request::<T>("handle", &request).await
   }
 
-  pub async fn create_chat(&self, chat_id: &str, rag_enabled: bool) -> Result<(), PluginError> {
+  pub async fn create_chat(&self, chat_id: &str) -> Result<(), PluginError> {
     self
       .send_request::<DefaultResponseParser>(
         "create_chat",
-        json!({ "chat_id": chat_id, "rag_enabled": rag_enabled }),
+        json!({ "chat_id": chat_id, "top_k": 2}),
       )
       .await
   }

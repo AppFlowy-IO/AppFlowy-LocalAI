@@ -73,7 +73,7 @@ impl AppFlowyLocalAI {
 
     let plugin = self.get_ai_plugin().await?;
     let operation = AIPluginOperation::new(plugin);
-    operation.create_chat(chat_id, true).await?;
+    operation.create_chat(chat_id).await?;
     Ok(())
   }
 
