@@ -169,7 +169,7 @@ impl AppFlowyLocalAI {
       file_content
     );
     operation
-      .index_file(chat_id, file_path_str, file_content)
+      .index_file(chat_id, file_path_str, file_content, None)
       .await?;
     Ok(())
   }

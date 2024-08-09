@@ -101,6 +101,7 @@ impl AIPluginOperation {
     chat_id: &str,
     file_path: Option<String>,
     file_content: Option<String>,
+    metadata: Option<HashMap<String, serde_json::Value>>,
   ) -> Result<(), PluginError> {
     if file_path.is_none() && file_content.is_none() {
       return Err(PluginError::Internal(anyhow!(
@@ -108,7 +109,10 @@ impl AIPluginOperation {
       )));
     }
 
-    let mut params = json!({ "metadata": [{"chat_id": chat_id}] });
+    let mut metadata = metadata.unwrap_or_default();
+    metadata.insert("chat_id".to_string(), json!(chat_id));
+    let mut params = json!({ "metadata": [metadata] });
+
     if let Some(file_path) = file_path {
       params["file_path"] = json!(file_path);
     }
