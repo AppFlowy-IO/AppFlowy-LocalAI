@@ -139,6 +139,7 @@ impl AppFlowyLocalAI {
     chat_id: &str,
     file_path: Option<PathBuf>,
     file_content: Option<String>,
+    metadata: Option<HashMap<String, serde_json::Value>>,
   ) -> Result<(), PluginError> {
     let mut file_path_str = None;
     if let Some(file_path) = file_path {
@@ -169,7 +170,7 @@ impl AppFlowyLocalAI {
       file_content
     );
     operation
-      .index_file(chat_id, file_path_str, file_content, None)
+      .index_file(chat_id, file_path_str, file_content, metadata)
       .await?;
     Ok(())
   }

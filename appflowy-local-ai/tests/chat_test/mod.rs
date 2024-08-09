@@ -113,7 +113,7 @@ async fn ci_chat_with_pdf() {
   let pdf = get_asset_path("AppFlowy_Values.pdf");
   test
     .local_ai
-    .index_file(&chat_id, Some(pdf), None)
+    .index_file(&chat_id, Some(pdf), None, None)
     .await
     .unwrap();
 
