@@ -92,14 +92,14 @@ impl AIPluginOperation {
     chat_id: &str,
     message: &str,
     metadata: serde_json::Value,
-  ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
+  ) -> Result<ReceiverStream<Result<serde_json::Value, PluginError>>, PluginError> {
     let plugin = self.get_plugin()?;
     let params = json!({
         "chat_id": chat_id,
         "method": "stream_answer_v2",
         "params": { "content": message, "metadata": metadata }
     });
-    plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
+    plugin.stream_request::<ChatStreamResponseV2Parser>("handle", &params)
   }
 
   pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<String>, PluginError> {
@@ -221,6 +221,15 @@ impl ResponseParser for ChatStreamResponseParser {
       .as_str()
       .map(|message| Bytes::from(message.to_string()))
       .ok_or(RemoteError::ParseResponse(json))
+  }
+}
+
+pub struct ChatStreamResponseV2Parser;
+impl ResponseParser for ChatStreamResponseV2Parser {
+  type ValueType = serde_json::Value;
+
+  fn parse_json(json: JsonValue) -> Result<Self::ValueType, RemoteError> {
+    Ok(json)
   }
 }
 

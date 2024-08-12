@@ -122,7 +122,9 @@ impl AppFlowyLocalAI {
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_ai_plugin().await?;
     let operation = AIPluginOperation::new(plugin);
-    let stream = operation.stream_message(chat_id, message, metadata).await?;
+    let stream = operation
+      .stream_message_v2(chat_id, message, metadata)
+      .await?;
     Ok(stream)
   }
 
