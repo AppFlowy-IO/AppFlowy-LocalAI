@@ -11,6 +11,7 @@ use appflowy_plugin::util::{get_operating_system, OperatingSystem};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -117,7 +118,7 @@ impl AppFlowyLocalAI {
     chat_id: &str,
     message: &str,
     metadata: serde_json::Value,
-  ) -> Result<ReceiverStream<anyhow::Result<Bytes, PluginError>>, PluginError> {
+  ) -> Result<ReceiverStream<anyhow::Result<Value, PluginError>>, PluginError> {
     trace!("[AI Plugin] ask question: {}", message);
     self.wait_until_plugin_ready().await?;
     let plugin = self.get_ai_plugin().await?;
