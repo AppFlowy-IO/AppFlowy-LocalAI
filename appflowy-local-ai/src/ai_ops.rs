@@ -86,6 +86,21 @@ impl AIPluginOperation {
     });
     plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
   }
+  #[instrument(level = "debug", skip(self), err)]
+  pub async fn stream_message_v2(
+    &self,
+    chat_id: &str,
+    message: &str,
+    metadata: serde_json::Value,
+  ) -> Result<ReceiverStream<Result<Bytes, PluginError>>, PluginError> {
+    let plugin = self.get_plugin()?;
+    let params = json!({
+        "chat_id": chat_id,
+        "method": "stream_answer_v2",
+        "params": { "content": message, "metadata": metadata }
+    });
+    plugin.stream_request::<ChatStreamResponseParser>("handle", &params)
+  }
 
   pub async fn get_related_questions(&self, chat_id: &str) -> Result<Vec<String>, PluginError> {
     self
