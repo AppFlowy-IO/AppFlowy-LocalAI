@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use appflowy_local_ai::ai_ops::{CompleteTextType, LocalAITranslateItem, LocalAITranslateRowData};
 use appflowy_plugin::manager::PluginManager;
+use serde_json::Value;
 use std::env::temp_dir;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -51,7 +52,10 @@ async fn ci_chat_stream_test() {
   let mut resp = test.stream_chat_message(&chat_id, "what is banana?").await;
   let mut list = vec![];
   while let Some(s) = resp.next().await {
-    list.push(String::from_utf8(s.unwrap().to_vec()).unwrap());
+    if let Value::Object(mut map) = s.unwrap() {
+      let s = map.remove("1").unwrap().as_str().unwrap().to_string();
+      list.push(s);
+    }
   }
 
   let answer = list.join("");
