@@ -229,7 +229,10 @@ impl ResponseParser for ChatStreamResponseV2Parser {
   type ValueType = serde_json::Value;
 
   fn parse_json(json: JsonValue) -> Result<Self::ValueType, RemoteError> {
-    Ok(json)
+    json
+      .as_str()
+      .and_then(|s| serde_json::from_str(s).ok())
+      .ok_or(RemoteError::ParseResponse(json))
   }
 }
 
